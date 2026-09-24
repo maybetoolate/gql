@@ -1,0 +1,24 @@
+services:
+  api:
+    build: .
+    ports:
+      - "${PORT:-4000}:4000"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:5173}
+      OAUTH_REDIRECT_BASE: ${OAUTH_REDIRECT_BASE:-http://localhost:4000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    volumes:
+      - sqlite-data:/data
+    healthcheck:
+      test: ["CMD", "bun", "--eval", "const r = await fetch('http://localhost:4000/readyz'); process.exit(r.ok ? 0 : 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  sqlite-data:

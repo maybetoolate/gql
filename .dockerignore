@@ -1,0 +1,9 @@
+node_modules
+client
+.git
+.github
+sqlite.db
+sqlite.db-wal
+sqlite.db-shm
+*.log
+.DS_Store

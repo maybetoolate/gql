@@ -1,0 +1,309 @@
+  enum ShelfStatus {
+    want_to_read
+    reading
+    finished
+  }
+
+  enum Role {
+    admin
+    member
+  }
+
+  enum BookSort {
+    NEWEST
+    TITLE
+    AUTHOR
+    RATING
+  }
+
+  enum ReviewSort {
+    NEWEST
+    TOP
+  }
+
+  enum NotificationType {
+    FOLLOW
+    REVIEW_LIKE
+    REVIEW_COMMENT
+  }
+
+  type Notification {
+    id: ID!
+    type: NotificationType!
+    createdAt: Float!
+    readAt: Float
+    actor: User!
+    book: Book
+    review: Review
+    comment: ReviewComment
+  }
+
+  type NotificationPrefs {
+    follow: Boolean!
+    like: Boolean!
+    comment: Boolean!
+  }
+
+  type Recommendation {
+    book: Book!
+    score: Float!
+    reason: String!
+  }
+
+  type ReadingGoal {
+    id: ID!
+    year: Int!
+    target: Int!
+    finishedCount: Int!
+    remaining: Int!
+    complete: Boolean!
+  }
+
+  type MonthlyCount {
+    month: Int!
+    finished: Int!
+  }
+
+  type BookEdge {
+    cursor: String!
+    node: Book!
+  }
+
+  type PageInfo {
+    hasNextPage: Boolean!
+    endCursor: String
+  }
+  type BookConnection {
+    totalCount: Int!
+    edges: [BookEdge!]!
+    pageInfo: PageInfo!
+  }
+
+  enum AuditAction {
+    USER_DELETE
+    ROLE_CHANGE
+    BOOK_DELETE
+    BOOK_MERGE
+  }
+
+  type AuditEntry {
+    id: ID!
+    action: AuditAction!
+    targetType: String!
+    targetId: ID!
+    detail: String
+    createdAt: Float!
+    actor: User
+  }
+
+  input BookImport {
+    title: String!
+    author: String!
+    year: Int
+    description: String
+    shelf: ShelfStatus
+    rating: Int
+    reviewText: String
+  }
+
+  type ImportResult {
+    imported: Int!
+    matched: Int!
+    shelved: Int!
+    reviewed: Int!
+    errors: [String!]!
+  }
+
+  type Tag {
+    id: ID!
+    name: String!
+    booksCount: Int!
+  }
+
+  type User {
+    id: ID!
+    email: String!
+    name: String!
+    role: Role!
+    createdAt: Float!
+    followersCount: Int!
+    followingCount: Int!
+    isFollowing: Boolean!
+  }
+
+  type AdminStats {
+    userCount: Int!
+    bookCount: Int!
+    reviewCount: Int!
+    commentCount: Int!
+    shelfCount: Int!
+    favoriteCount: Int!
+    followCount: Int!
+    tagCount: Int!
+  }
+
+  type AuthPayload {
+    token: String!
+    refreshToken: String!
+    user: User!
+  }
+
+  type Book {
+    id: ID!
+    title: String!
+    author: String!
+    year: Int
+    description: String
+    coverUrl: String
+    createdBy: ID
+    createdAt: Float!    averageRating: Float!
+    reviewsCount: Int!
+    isFavorite: Boolean!
+    shelfStatus: ShelfStatus
+    tags: [Tag!]!
+    reviews(limit: Int = 20, offset: Int = 0, sort: ReviewSort = NEWEST): [Review!]!
+  }
+
+  type ShelfItem {
+    id: ID!
+    status: ShelfStatus!
+    progress: Int!
+    updatedAt: Float!
+    book: Book!
+  }
+
+  type Review {
+    id: ID!
+    rating: Int!
+    text: String
+    likesCount: Int!
+    likedByMe: Boolean!
+    commentsCount: Int!
+    createdAt: Float!
+    updatedAt: Float!
+    user: User!
+    book: Book!
+    comments(limit: Int = 20, offset: Int = 0): [ReviewComment!]!
+  }
+
+  type ReviewComment {
+    id: ID!
+    text: String!
+    createdAt: Float!
+    updatedAt: Float!
+    user: User!
+    review: Review!
+  }
+
+  enum ActivityType {
+    REVIEW
+    SHELF_UPDATE
+    FAVORITE
+  }
+
+  type ActivityItem {
+    id: ID!
+    type: ActivityType!
+    createdAt: Float!
+    user: User!
+    book: Book!
+    review: Review
+    shelfStatus: ShelfStatus
+  }
+
+  type Query {
+    hello: String!
+    me: User
+    books(
+      search: String
+      tag: String
+      tags: [String!]
+      sort: BookSort = NEWEST
+      limit: Int = 20
+      offset: Int = 0
+    ): [Book!]!
+    book(id: ID!): Book
+    booksCount(search: String, tag: String, tags: [String!]): Int!
+    tags(limit: Int = 50): [Tag!]!
+    myShelf(status: ShelfStatus): [ShelfItem!]!
+    myFavorites: [Book!]!
+    bookReviews(
+      bookId: ID!
+      limit: Int = 20
+      offset: Int = 0
+      sort: ReviewSort = NEWEST
+    ): [Review!]!
+    myReviews: [Review!]!
+    followers(userId: ID!): [User!]!
+    following(userId: ID!): [User!]!
+    activityFeed(limit: Int = 20, offset: Int = 0): [ActivityItem!]!
+    adminStats: AdminStats!
+    users(search: String, limit: Int = 20, offset: Int = 0): [User!]!
+    user(id: ID!): User
+    auditLog(limit: Int = 50, offset: Int = 0): [AuditEntry!]!
+    myNotifications(limit: Int = 20, offset: Int = 0, unreadOnly: Boolean = false): [Notification!]!
+    unreadNotificationsCount: Int!
+    myNotificationPrefs: NotificationPrefs!
+    recommendations(limit: Int = 10): [Recommendation!]!
+    myGoals: [ReadingGoal!]!
+    goal(year: Int!): ReadingGoal
+    exportData: String!
+    readingStats(year: Int!): [MonthlyCount!]!
+    booksConnection(
+      first: Int = 20
+      after: String
+      search: String
+      tag: String
+      tags: [String!]
+      sort: BookSort = NEWEST
+    ): BookConnection!
+  }
+
+  type Mutation {
+    register(email: String!, password: String!, name: String!): AuthPayload!
+    login(email: String!, password: String!): AuthPayload!
+    refreshToken(token: String!): AuthPayload!
+    logout(token: String!): Boolean!
+    logoutAll: Boolean!
+    addBook(
+      title: String!
+      author: String!
+      year: Int
+      description: String
+      coverUrl: String
+    ): Book!
+    updateBook(
+      id: ID!
+      title: String
+      author: String
+      year: Int
+      description: String
+      coverUrl: String
+    ): Book!
+    deleteBook(id: ID!): Boolean!
+    setShelfStatus(bookId: ID!, status: ShelfStatus!): ShelfItem!
+    updateShelfProgress(bookId: ID!, progress: Int!): ShelfItem!
+    removeFromShelf(bookId: ID!): Boolean!
+    toggleFavorite(bookId: ID!): Book!
+    toggleReviewLike(reviewId: ID!): Review!
+    addComment(reviewId: ID!, text: String!): ReviewComment!
+    updateComment(id: ID!, text: String!): ReviewComment!
+    deleteComment(id: ID!): Boolean!
+    followUser(userId: ID!): User!
+    unfollowUser(userId: ID!): Boolean!
+    setUserRole(userId: ID!, role: Role!): User!
+    deleteUser(userId: ID!): Boolean!
+    mergeBooks(sourceId: ID!, targetId: ID!): Book!
+    markNotificationRead(id: ID!): Notification!
+    markAllNotificationsRead: Int!
+    updateProfile(name: String!): User!
+    changePassword(currentPassword: String!, newPassword: String!): AuthPayload!
+    setNotificationPrefs(follow: Boolean, like: Boolean, comment: Boolean): NotificationPrefs!
+    setGoal(year: Int!, target: Int!): ReadingGoal!
+    deleteGoal(year: Int!): Boolean!
+    importBooks(books: [BookImport!]!): ImportResult!
+    addTagToBook(bookId: ID!, name: String!): Book!
+    removeTagFromBook(bookId: ID!, name: String!): Book!
+    upsertReview(bookId: ID!, rating: Int!, text: String): Review!
+    deleteReview(id: ID!): Boolean!
+  }

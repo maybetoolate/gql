@@ -1,0 +1,34 @@
+{
+  "name": "gql",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"bun run dev:server\" \"bun run dev:client\"",
+    "dev:server": "bun run --hot src/index.ts",
+    "dev:client": "bun run --cwd client dev",
+    "dev:admin": "bun run --cwd client-admin dev",
+    "build": "bun run --cwd client build",
+    "build:server": "tsc --noEmit",
+    "test": "bun test ./test",
+    "db:generate": "drizzle-kit generate",
+    "db:seed": "bun run src/db/seed-run.ts",
+    "db:promote": "bun run src/db/promote.ts",
+    "db:backup": "bun run src/db/backup-run.ts",
+    "schema:dump": "bun run src/dump-schema.ts",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@apollo/server": "^5.5.1",
+    "dataloader": "^2.2.3",
+    "drizzle-orm": "^0.45.3",
+    "graphql": "^16.11.0",
+    "graphql-depth-limit": "^1.1.0",
+    "hono": "^4.13.8"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^26.6.2",
+    "concurrently": "^10.0.5",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "^5.9.2"
+  }
+}

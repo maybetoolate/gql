@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+        working-directory: .
+      - run: bun x tsc --noEmit
+      - run: bun run schema:dump
+      - run: git diff --exit-code src/schema.graphql
+      - run: bun test ./test
+
+  client:
+    strategy:
+      matrix:
+        dir: [client, client-admin]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+      - run: npm ci
+        working-directory: ${{ matrix.dir }}
+      - run: npm test
+        working-directory: ${{ matrix.dir }}
+      - run: npm run codegen
+        working-directory: ${{ matrix.dir }}
+      - run: git diff --exit-code src/types/__generated__/graphql.ts
+        working-directory: ${{ matrix.dir }}
+      - run: npm run build
+        working-directory: ${{ matrix.dir }}
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: bookshelf-api:ci

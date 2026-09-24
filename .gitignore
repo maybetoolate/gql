@@ -1,0 +1,15 @@
+# deps
+node_modules/
+client/node_modules/
+client/dist/
+client-admin/node_modules/
+client-admin/dist/
+# sqlite
+sqlite.db
+sqlite.db-journal
+sqlite.db-wal
+sqlite.db-shm
+# uploaded covers
+uploads/
+# local backups
+backups/
