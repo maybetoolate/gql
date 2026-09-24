@@ -144,7 +144,9 @@ const en = {
     filterActive: "Active",
     filterUpcoming: "Upcoming",
     filterEnded: "Ended",
+    /** Format the number of challenge members in English. */
     members: (n: number) => `${n} members`,
+    /** Format completed books against a challenge target in English. */
     progress: (done: number, target: number) => `${done}/${target} books`,
     join: "Join",
     leave: "Leave",
@@ -361,7 +363,9 @@ const es: Dict = {
     filterActive: "Activos",
     filterUpcoming: "Próximos",
     filterEnded: "Terminados",
+    /** Format the number of challenge members in Spanish. */
     members: (n: number) => `${n} miembros`,
+    /** Format completed books against a challenge target in Spanish. */
     progress: (done: number, target: number) => `${done}/${target} libros`,
     join: "Unirse",
     leave: "Salir",

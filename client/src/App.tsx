@@ -1220,7 +1220,9 @@ export function SettingsView() {  const { user } = useAuth();
 }
 
 
-export function ChallengesView() {  const { user } = useAuth();
+/** Show challenge filters, progress, leaderboards, and membership controls. */
+export function ChallengesView() {
+  const { user } = useAuth();
   const t = useT();
   const [status, setStatus] = useState<"ALL" | ChallengeStatus>("ACTIVE");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -1240,6 +1242,7 @@ export function ChallengesView() {  const { user } = useAuth();
   const [days, setDays] = useState("30");
   if (!user) return <Card><CardContent className="p-4">{t.challenges.loginRequired}</CardContent></Card>;
 
+  /** Format a challenge timestamp for the viewer's locale. */
   const fmtDate = (ms: number) => new Date(ms).toLocaleDateString();
 
   return (

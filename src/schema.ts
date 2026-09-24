@@ -945,6 +945,7 @@ function bookFilterWhere(
 
 type ChallengeStatus = "UPCOMING" | "ACTIVE" | "ENDED";
 
+/** Classify a challenge using its start and end timestamps. */
 function challengeStatusOf(row: { startAt: number; endAt: number }): ChallengeStatus {
   const now = Date.now();
   if (now < row.startAt) return "UPCOMING";
@@ -952,6 +953,7 @@ function challengeStatusOf(row: { startAt: number; endAt: number }): ChallengeSt
   return "ACTIVE";
 }
 
+/** Count a user's finished shelf items updated within a challenge's inclusive window. */
 async function finishedInWindow(
   userId: string,
   startAt: number,
@@ -965,6 +967,7 @@ async function finishedInWindow(
   return Number(rows[0]?.n ?? 0);
 }
 
+/** Fetch a challenge or report a GraphQL not-found error. */
 async function getChallengeOrThrow(id: string) {
   const rows = await db.select().from(challenges).where(eq(challenges.id, id));
   const row = rows[0];
@@ -976,8 +979,9 @@ async function getChallengeOrThrow(id: string) {
   return row;
 }
 
-
-async function goalWithProgress(  userId: string,
+/** Add a user's finished-book count and remaining target to a reading goal. */
+async function goalWithProgress(
+  userId: string,
   row: typeof readingGoals.$inferSelect,
 ) {
   const finished = await db
@@ -1358,11 +1362,13 @@ export const resolvers = {
       if (!rows[0]) return null;
       return goalWithProgress(user.id, rows[0]);
     },
+    /** Return the authenticated user's finished-book counts for each month of a year. */
     readingStats: async (
       _: unknown,
       args: { year: number },
       ctx: GraphQLContext,
-    ): Promise<{ month: number; finished: number }[]> => {      const user = requireUser(ctx);
+    ): Promise<{ month: number; finished: number }[]> => {
+      const user = requireUser(ctx);
       if (!Number.isInteger(args.year) || args.year < 2000 || args.year > 2100) {
         throw badInput("Year must be between 2000 and 2100");
       }
@@ -1381,6 +1387,7 @@ export const resolvers = {
         finished: byMonth.get(i + 1) ?? 0,
       }));
     },
+    /** List challenges by status, newest end date first, with bounded pagination. */
     challenges: async (
       _: unknown,
       args: { status?: ChallengeStatus | null; limit?: number | null; offset?: number | null },
@@ -1398,6 +1405,7 @@ export const resolvers = {
         : rows;
       return filtered.slice(offset, offset + limit);
     },
+    /** Find a challenge by ID, returning null when it does not exist. */
     challenge: async (_: unknown, args: { id: string }) => {
       const rows = await db.select().from(challenges).where(eq(challenges.id, args.id));
       return rows[0] ?? null;
@@ -2249,6 +2257,7 @@ export const resolvers = {
         );
       return true;
     },
+    /** Validate and create a challenge, enrolling its creator as the first member. */
     createChallenge: async (
       _: unknown,
       args: {
@@ -2288,6 +2297,7 @@ export const resolvers = {
         .onConflictDoNothing();
       return row;
     },
+    /** Enroll the authenticated user in an existing challenge. */
     joinChallenge: async (
       _: unknown,
       args: { id: string },
@@ -2301,6 +2311,7 @@ export const resolvers = {
         .onConflictDoNothing();
       return row;
     },
+    /** Remove the authenticated user's membership from a challenge. */
     leaveChallenge: async (
       _: unknown,
       args: { id: string },
@@ -2317,6 +2328,7 @@ export const resolvers = {
         );
       return true;
     },
+    /** Delete a challenge when requested by its creator or an admin. */
     deleteChallenge: async (
       _: unknown,
       args: { id: string },
@@ -2534,7 +2546,9 @@ export const resolvers = {
   },
 
   Challenge: {
+    /** Resolve the challenge's current time-based status. */
     status: (parent: { startAt: number; endAt: number }) => challengeStatusOf(parent),
+    /** Count the challenge's enrolled users. */
     memberCount: async (parent: { id: string }): Promise<number> => {
       const rows = await db
         .select({ n: count() })
@@ -2542,6 +2556,7 @@ export const resolvers = {
         .where(eq(challengeMembers.challengeId, parent.id));
       return Number(rows[0]?.n ?? 0);
     },
+    /** Check whether the current user belongs to the challenge. */
     isMember: async (
       parent: { id: string },
       _: unknown,
@@ -2560,6 +2575,7 @@ export const resolvers = {
         .limit(1);
       return rows.length > 0;
     },
+    /** Count the current user's completed books during the challenge. */
     myProgress: async (
       parent: { id: string; startAt: number; endAt: number },
       _: unknown,
@@ -2568,6 +2584,7 @@ export const resolvers = {
       if (!ctx.user) return 0;
       return finishedInWindow(ctx.user.id, parent.startAt, parent.endAt);
     },
+    /** Rank members by completed books and cap the returned entries. */
     leaderboard: async (
       parent: { id: string; startAt: number; endAt: number; target: number },
       args: { limit?: number | null },
