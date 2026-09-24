@@ -9,7 +9,7 @@ import { graphqlHonoHandler } from "./graphql";
 import { rateLimit, MemoryStore, SqliteStore } from "./rate-limit";
 import { runMigrations, db } from "./db";
 import { seedIfEmpty } from "./db/seed";
-import { pruneSessions, userFromAuthHeader } from "./auth";
+import { pruneSessions, startSessionPruner, userFromAuthHeader } from "./auth";
 import { isSafeBookId, saveCover } from "./covers";
 import { canEdit, getBookOrThrow } from "./schema";
 import { books } from "./db/schema";
@@ -173,6 +173,9 @@ app.get("/auth/:provider/callback", async (c) => {
 runMigrations();
 await seedIfEmpty();
 await pruneSessions();
+if (process.env.DISABLE_PRUNER !== "1") {
+  startSessionPruner(Number(process.env.PRUNE_INTERVAL_MS ?? 3_600_000));
+}
 
 const GRAPHQL_MAX_DEPTH = Number(process.env.GRAPHQL_MAX_DEPTH ?? 10);
 const RATE_LIMIT_MAX = Number(process.env.RATE_LIMIT_MAX ?? 120);

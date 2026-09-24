@@ -4,6 +4,7 @@
 process.env.SQLITE_PATH = ":memory:";
 process.env.JWT_SECRET = "test-secret";
 process.env.BCRYPT_COST = "4";
+process.env.DISABLE_PRUNER = "1";
 
 const { runMigrations } = await import("../src/db/index");
 runMigrations();

@@ -117,6 +117,18 @@ export async function pruneSessions(): Promise<number> {
   return stale.length;
 }
 
+/**
+ * Periodically prune dead sessions in-process. Returns a stop function.
+ * The timer is unref'd so it never holds a test runner or script open.
+ */
+export function startSessionPruner(intervalMs = 60 * 60 * 1000): () => void {
+  const timer = setInterval(() => {
+    pruneSessions().catch((err) => console.warn("[prune] failed:", err));
+  }, intervalMs);
+  (timer as unknown as { unref?: () => void }).unref?.();
+  return () => clearInterval(timer);
+}
+
 export function getJwtSecret(): string {
   return JWT_SECRET;
 }

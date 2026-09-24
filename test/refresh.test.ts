@@ -102,8 +102,7 @@ describe("refresh sessions", () => {
     }
   });
 
-  test("expired access tokens are rejected", async () => {
-    const { db } = await import("../src/db");
+  test("expired access tokens are rejected", async () => {    const { db } = await import("../src/db");
     const { users } = await import("../src/db/schema");
     const { eq } = await import("drizzle-orm");
     const rows = await db.select().from(users).where(eq(users.id, userId));
@@ -115,5 +114,33 @@ describe("refresh sessions", () => {
       rejected = true;
     }
     expect(rejected).toBe(true);
+  });
+
+  test("background pruner removes dead sessions", async () => {
+    const { db } = await import("../src/db");
+    const { refreshTokens } = await import("../src/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const { startSessionPruner } = await import("../src/auth");
+    const staleHash = `stale-${Date.now()}`;
+    await db.insert(refreshTokens).values({
+      userId,
+      tokenHash: staleHash,
+      expiresAt: Date.now() - 8 * 24 * 60 * 60 * 1000,
+    });
+    const stop = startSessionPruner(20);
+    try {
+      const deadline = Date.now() + 2000;
+      for (;;) {
+        const rows = await db
+          .select({ id: refreshTokens.id })
+          .from(refreshTokens)
+          .where(eq(refreshTokens.tokenHash, staleHash));
+        if (rows.length === 0) break;
+        if (Date.now() > deadline) throw new Error("pruner did not run in time");
+        await Bun.sleep(25);
+      }
+    } finally {
+      stop();
+    }
   });
 });

@@ -83,7 +83,7 @@ Seeded login: `demo@example.com` / `password123`.
 |---|---|
 | `bun run dev` | server + client concurrently |
 | `bun run start` | server only (migrates + seeds automatically) |
-| `bun run test` | server test suite (isolated in-memory SQLite, 77 tests) |
+| `bun run test` | server test suite (isolated in-memory SQLite, 78 tests) |
 | `npm --prefix client test` | client component tests (Vitest, 16 tests) |
 | `npm --prefix client-admin test` | admin portal tests (Vitest, 6 tests) |
 | `bun run db:promote <email>` | grant admin role (seeded demo is already admin) |
@@ -146,6 +146,7 @@ Notes:
 - `JWT_SECRET` — **required in production** (dev default warns)
 - `ACCESS_TOKEN_TTL_S` (default 900) · `REFRESH_TOKEN_TTL_S` (default 30d)
 - `BCRYPT_COST` (default 10; tests use 4)
+- Dead sessions are pruned on boot and hourly (`PRUNE_INTERVAL_MS`, `DISABLE_PRUNER=1` to opt out)
 - OAuth: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`
   (unconfigured providers return 400), `OAUTH_REDIRECT_BASE` (default
   `http://localhost:4000` — must match the provider console entry),
