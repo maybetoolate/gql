@@ -16,7 +16,7 @@ frontend with GraphQL Codegen types.
 - **Recommendations** — `recommendations` merges followed users' 4–5★ reads, tag overlap with finished/loved books, and global top-rated fallback, each with an explainable `reason`; known books always excluded
 - **Reading goals** — yearly targets (`setGoal`/`deleteGoal`) with progress derived from finished shelf items, surfaced as a progress widget on the shelf tab
 - **Reading stats** — `readingStats(year)` monthly finished counts (UTC) rendered as a bar chart on the shelf tab
-- **Import/export** — bulk `importBooks` (case-insensitive dedupe, shelf + review attach, per-row errors, 200-row cap) and `exportData` JSON dump; client Import tab parses Goodreads CSV and downloads exports
+- **Import/export** — bulk `importBooks` (case-insensitive dedupe, shelf + review attach, per-row errors, 200-row cap), `exportData` JSON dump, and Goodreads-compatible `exportCsv`; client Import tab parses/uploads Goodreads CSV and downloads both formats
 - **Cover uploads** — `POST /api/books/:id/cover` (auth + edit-permission, JPEG/PNG/WebP/GIF ≤ 2MB), served at `/covers/*`, `coverUrl` on books, thumbnails in lists, file cleanup on book delete
 - **i18n** — English/Spanish dictionaries with compile-time key parity (`es: Dict`), persisted switcher, translated session-expiry errors (main client fully translated; admin portal fully translated too)
 - **Admin** — `admin`/`member` roles, `adminStats` dashboard counts, user search/role/delete (self-demote and self-delete blocked, deletes cascade), book moderation with duplicate **merging** (reviews/shelf/favorites/tags moved with conflict rules), **audit log** of destructive actions with actor attribution (survives actor deletion); separate admin portal on :5174

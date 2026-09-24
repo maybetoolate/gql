@@ -409,6 +409,12 @@ export const EXPORT_DATA = gql`
   }
 `;
 
+export const EXPORT_CSV = gql`
+  query ExportCsv {
+    exportCsv
+  }
+`;
+
 export const TOGGLE_REVIEW_LIKE = gql`
   mutation ToggleReviewLike($reviewId: ID!) {
     toggleReviewLike(reviewId: $reviewId) {

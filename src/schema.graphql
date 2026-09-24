@@ -248,6 +248,7 @@
     myGoals: [ReadingGoal!]!
     goal(year: Int!): ReadingGoal
     exportData: String!
+    exportCsv: String!
     readingStats(year: Int!): [MonthlyCount!]!
     booksConnection(
       first: Int = 20

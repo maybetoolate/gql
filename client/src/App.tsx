@@ -57,6 +57,7 @@ import {
   DELETE_COMMENT,
   DELETE_REVIEW,
   EXPORT_DATA,
+  EXPORT_CSV,
   FOLLOW_USER,
   GET_BOOK,
   GET_BOOKS,
@@ -932,7 +933,18 @@ function ImportView() {
     refetchQueries: [GET_BOOKS],
   });
   const [fetchExport, { loading: exporting }] = useLazyQuery(EXPORT_DATA);
+  const [fetchCsv, { loading: exportingCsv }] = useLazyQuery(EXPORT_CSV);
   if (!user) return <Card><CardContent className="p-4">{t.importView.loginRequired}</CardContent></Card>;
+
+  const download = (raw: string, filename: string, mime: string) => {
+    const blob = new Blob([raw], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-4">
@@ -955,16 +967,22 @@ function ImportView() {
                 const res = await fetchExport();
                 const raw = res.data?.exportData;
                 if (!raw) return;
-                const blob = new Blob([raw], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "bookshelf-export.json";
-                a.click();
-                URL.revokeObjectURL(url);
+                download(raw, "bookshelf-export.json", "application/json");
               }}
             >
               <Download size={14} /> {exporting ? t.importView.exporting : t.importView.exportButton}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={exportingCsv}
+              onClick={async () => {
+                const res = await fetchCsv();
+                const raw = res.data?.exportCsv;
+                if (!raw) return;
+                download(raw, "bookshelf-goodreads.csv", "text/csv");
+              }}
+            >
+              <Download size={14} /> {exportingCsv ? t.importView.exporting : t.importView.exportCsvButton}
             </Button>
           </CardContent>
         </Card>

@@ -331,6 +331,7 @@ export const typeDefs = `#graphql
     myGoals: [ReadingGoal!]!
     goal(year: Int!): ReadingGoal
     exportData: String!
+    exportCsv: String!
     readingStats(year: Int!): [MonthlyCount!]!
     booksConnection(
       first: Int = 20
@@ -1344,6 +1345,45 @@ export const resolvers = {
         favorites: favs.map((r) => ({ title: r.book.title, author: r.book.author })),
         goals: goals.map((g) => ({ year: g.year, target: g.target })),
       });
+    },
+    exportCsv: async (_: unknown, __: unknown, ctx: GraphQLContext): Promise<string> => {
+      const user = requireUser(ctx);
+      const [shelf, revs] = await Promise.all([
+        db
+          .select({ item: shelfItems, book: books })
+          .from(shelfItems)
+          .innerJoin(books, eq(shelfItems.bookId, books.id))
+          .where(eq(shelfItems.userId, user.id))
+          .orderBy(books.title),
+        db
+          .select()
+          .from(reviews)
+          .where(eq(reviews.userId, user.id)),
+      ]);
+      const ratingByBook = new Map(revs.map((r) => [r.bookId, r.rating]));
+      const SHELF_TO_GOODREADS: Record<ShelfStatus, string> = {
+        finished: "read",
+        reading: "currently-reading",
+        want_to_read: "to-read",
+      };
+      const cell = (v: string | number | null | undefined): string => {
+        const s = v == null ? "" : String(v);
+        return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const header = ["Title", "Author", "My Rating", "Exclusive Shelf", "Original Publication Year"];
+      const lines = [header.join(",")];
+      for (const r of shelf) {
+        lines.push(
+          [
+            cell(r.book.title),
+            cell(r.book.author),
+            cell(ratingByBook.get(r.book.id) ?? 0),
+            SHELF_TO_GOODREADS[r.item.status as ShelfStatus],
+            cell(r.book.year),
+          ].join(","),
+        );
+      }
+      return lines.join("\n") + "\n";
     },
   },
 

@@ -85,4 +85,37 @@ describe("import and export", () => {
     expect(data.reviews.map((r) => r.rating)).toContain(5);
     expect(Array.isArray(data.favorites) && Array.isArray(data.goals)).toBe(true);
   });
+
+  test("csv export is goodreads-shaped and escapes", async () => {
+    const trickyId = expectOk<{ id: string }>(
+      await exec(
+        server,
+        `mutation { addBook(title: "Comma, \\"Quoted\\" (csv)", author: "Csv, Author") { id } }`,
+        {},
+        userId,
+      ),
+      "addBook",
+    ).id;
+    await exec(
+      server,
+      `mutation($id: ID!) { setShelfStatus(bookId: $id, status: reading) { id } }`,
+      { id: trickyId },
+      userId,
+    );
+
+    const csv = expectOk<string>(
+      await exec(server, `{ exportCsv }`, {}, userId),
+      "exportCsv",
+    );
+    const lines = csv.trim().split("\n");
+    expect(lines[0]).toBe("Title,Author,My Rating,Exclusive Shelf,Original Publication Year");
+    const tricky = lines.find((l) => l.includes("Quoted"));
+    expect(tricky).toBe(`"Comma, ""Quoted"" (csv)","Csv, Author",0,currently-reading,`);
+    // Every row has exactly 5 columns (quote-aware split).
+    for (const line of lines.slice(1)) {
+      expect(line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)).toHaveLength(5);
+    }
+
+    expectCode(await exec(server, `{ exportCsv }`), "UNAUTHENTICATED");
+  });
 });

@@ -283,6 +283,11 @@ export type ExportDataQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type ExportDataQuery = { exportData: string };
 
+export type ExportCsvQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type ExportCsvQuery = { exportCsv: string };
+
 export type ToggleReviewLikeMutationVariables = Exact<{
   reviewId: string | number;
 }>;
