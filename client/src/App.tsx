@@ -61,6 +61,8 @@ import {
   FOLLOW_USER,
   GET_BOOK,
   GET_BOOKS,
+  GET_CHALLENGE,
+  GET_CHALLENGES,
   GET_FEED,
   GET_FAVORITES,
   GET_GOALS,
@@ -72,10 +74,13 @@ import {
   GET_TAGS,
   GET_UNREAD_COUNT,
   IMPORT_BOOKS,
+  JOIN_CHALLENGE,
+  LEAVE_CHALLENGE,
   MARK_ALL_READ,
   MARK_READ,
   REMOVE_FROM_SHELF,
   REMOVE_TAG,
+  CREATE_CHALLENGE,
   SET_GOAL,
   SET_PREFS,
   SET_SHELF_STATUS,
@@ -90,10 +95,15 @@ import {
 import type {
   ActivityType,
   BookSort,
+  ChallengeStatus,
   GetBookQuery,
   GetBookQueryVariables,
   GetBooksQuery,
   GetBooksQueryVariables,
+  GetChallengeQuery,
+  GetChallengeQueryVariables,
+  GetChallengesQuery,
+  GetChallengesQueryVariables,
   GetFavoritesQuery,
   GetFeedQuery,
   GetGoalsQuery,
@@ -1210,6 +1220,158 @@ export function SettingsView() {  const { user } = useAuth();
 }
 
 
+export function ChallengesView() {  const { user } = useAuth();
+  const t = useT();
+  const [status, setStatus] = useState<"ALL" | ChallengeStatus>("ACTIVE");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const { data, loading, refetch } = useQuery<GetChallengesQuery, GetChallengesQueryVariables>(GET_CHALLENGES, {
+    variables: { status: status === "ALL" ? null : status },
+  });
+  const { data: detail, refetch: refetchDetail } = useQuery<GetChallengeQuery, GetChallengeQueryVariables>(GET_CHALLENGE, {
+    skip: !openId,
+    variables: { id: openId ?? "" },
+  });
+  const [join] = useMutation(JOIN_CHALLENGE);
+  const [leave] = useMutation(LEAVE_CHALLENGE);
+  const [create] = useMutation(CREATE_CHALLENGE);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [target, setTarget] = useState("5");
+  const [days, setDays] = useState("30");
+  if (!user) return <Card><CardContent className="p-4">{t.challenges.loginRequired}</CardContent></Card>;
+
+  const fmtDate = (ms: number) => new Date(ms).toLocaleDateString();
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+          <Trophy size={18} className="text-primary" /> {t.challenges.title}
+        </h2>
+        <p className="text-muted-foreground text-sm mt-1">{t.challenges.subtitle}</p>
+      </div>
+      <div className="flex gap-1.5 flex-wrap">
+        {(["ALL", "ACTIVE", "UPCOMING", "ENDED"] as const).map((s) => (
+          <button
+            key={s}
+            disabled={status === s}
+            onClick={() => setStatus(s)}
+            className="border rounded-full px-2.5 py-1 text-[13px]"
+          >
+            {s === "ALL" ? t.challenges.filterAll
+              : s === "ACTIVE" ? t.challenges.filterActive
+              : s === "UPCOMING" ? t.challenges.filterUpcoming
+              : t.challenges.filterEnded}
+          </button>
+        ))}
+      </div>
+      {loading && <p className="text-muted-foreground py-4">{t.common.loading}</p>}
+      <ul className="list-none m-0 p-0 grid gap-2.5">
+        {(data?.challenges ?? []).map((c) => (
+          <li key={c.id} className="bg-card border rounded-xl p-3 shadow-sm">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setOpenId(openId === c.id ? null : c.id)}
+                className="font-bold text-base bg-transparent border-0 p-0 cursor-pointer text-left hover:underline"
+              >
+                {c.name}
+              </button>
+              <Badge variant="secondary">{c.status}</Badge>
+              <span className="text-sm text-muted-foreground">
+                {t.challenges.members(c.memberCount)} · {fmtDate(c.startAt)} → {fmtDate(c.endAt)}
+              </span>
+              <span className="ml-auto">
+                {c.isMember ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={async () => {
+                      await leave({ variables: { id: c.id } });
+                      await refetch();
+                    }}
+                  >
+                    {t.challenges.leave}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      await join({ variables: { id: c.id } });
+                      await refetch();
+                    }}
+                  >
+                    {t.challenges.join}
+                  </Button>
+                )}
+              </span>
+            </div>
+            <div className="text-sm text-muted-foreground mt-1">
+              {t.challenges.progress(c.myProgress, c.target)}
+            </div>
+            {openId === c.id && (
+              <div className="mt-2">
+                <h4 className="text-sm font-semibold mb-1">{t.challenges.leaderboard}</h4>
+                {(detail?.challenge?.leaderboard ?? []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">{t.challenges.noEntries}</p>
+                ) : (
+                  <ol className="m-0 p-0 list-none grid gap-1">
+                    {(detail?.challenge?.leaderboard ?? []).map((e, i) => (
+                      <li key={e.user.id} className="text-sm">
+                        #{i + 1} {e.user.name} — {e.finished} ({e.percent}%)
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+      {(data?.challenges ?? []).length === 0 && !loading && (
+        <p className="text-muted-foreground text-sm">{t.challenges.empty}</p>
+      )}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">{t.challenges.createTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const n = Number(target);
+              const d = Number(days);
+              if (!name.trim() || !Number.isInteger(n) || n < 1 || !Number.isInteger(d) || d < 1) return;
+              const startAt = Date.now();
+              await create({
+                variables: {
+                  name: name.trim(),
+                  description: description.trim() || null,
+                  startAt,
+                  endAt: startAt + d * 24 * 60 * 60 * 1000,
+                  target: n,
+                },
+              });
+              setName("");
+              setDescription("");
+              await refetch();
+            }}
+            className="grid gap-2"
+          >
+            <Input placeholder={t.challenges.namePh} value={name} onChange={(e) => setName(e.currentTarget.value)} />
+            <Input placeholder={t.challenges.descriptionPh} value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
+            <div className="flex gap-2">
+              <Input placeholder={t.challenges.targetPh} value={target} inputMode="numeric" onChange={(e) => setTarget(e.currentTarget.value)} />
+              <Input placeholder={t.challenges.durationPh} value={days} inputMode="numeric" onChange={(e) => setDays(e.currentTarget.value)} />
+              <Button type="submit">{t.challenges.create}</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+
 function GoalWidget() {
   const { user } = useAuth();
   const t = useT();
@@ -1609,6 +1771,7 @@ const TABS: { value: string; labelKey: keyof Dict["nav"]; to: string; icon: type
   { value: "foryou", labelKey: "foryou", to: "/foryou", icon: Sparkles },
   { value: "import", labelKey: "import", to: "/import", icon: ArrowLeftRight },
   { value: "settings", labelKey: "settings", to: "/settings", icon: Settings },
+  { value: "challenges", labelKey: "challenges", to: "/challenges", icon: Trophy },
 ];
 
 function LangSwitcher() {
@@ -1686,7 +1849,7 @@ function Shell() {
           </div>
           <AuthPanel />
           <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-            <div className="grid grid-cols-7 gap-0.5 px-1 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+            <div className="grid grid-cols-8 gap-0.5 px-1 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -1719,6 +1882,7 @@ function Shell() {
             <Route path="/foryou" element={<ForYouRoute />} />
             <Route path="/import" element={<ImportView />} />
             <Route path="/settings" element={<SettingsView />} />
+            <Route path="/challenges" element={<ChallengesView />} />
             <Route path="/book/:id" element={<BookDetailRoute />} />
             <Route path="*" element={<Navigate to="/books" replace />} />
           </Routes>

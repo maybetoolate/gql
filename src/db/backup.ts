@@ -21,7 +21,11 @@ export async function backupDatabase(
     throw new Error("Cannot back up an in-memory database");
   }
   await mkdir(destDir, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[:.]/g, "-")
+    .replace("T", "_")
+    .replace(/Z$/, "");
   const path = join(destDir, `backup-${stamp}.db`);
   const source = new Database(dbPath, { readonly: true });
   try {

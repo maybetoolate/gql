@@ -17,6 +17,7 @@ frontend with GraphQL Codegen types.
 - **Account settings** — display-name update, password change (rotates all sessions, returns a fresh pair), notification preference toggles; Settings tab
 - **Recommendations** — `recommendations` merges followed users' 4–5★ reads, tag overlap with finished/loved books, and global top-rated fallback, each with an explainable `reason`; known books always excluded
 - **Reading goals** — yearly targets (`setGoal`/`deleteGoal`) with progress derived from finished shelf items, surfaced as a progress widget on the shelf tab
+- **Reading challenges** — time-boxed book-count races with join/leave, per-member progress, and ranked leaderboards; Challenges tab with create flow
 - **Reading stats** — `readingStats(year)` monthly finished counts (UTC) rendered as a bar chart on the shelf tab
 - **Import/export** — bulk `importBooks` (case-insensitive dedupe, shelf + review attach, per-row errors, 200-row cap), `exportData` JSON dump, and Goodreads-compatible `exportCsv`; client Import tab parses/uploads Goodreads CSV and downloads both formats
 - **Cover uploads** — `POST /api/books/:id/cover` (auth + edit-permission, JPEG/PNG/WebP/GIF ≤ 2MB), served at `/covers/*`, `coverUrl` on books, thumbnails in lists, file cleanup on book delete
@@ -83,8 +84,8 @@ Seeded login: `demo@example.com` / `password123`.
 |---|---|
 | `bun run dev` | server + client concurrently |
 | `bun run start` | server only (migrates + seeds automatically) |
-| `bun run test` | server test suite (isolated in-memory SQLite, 79 tests) |
-| `npm --prefix client test` | client component tests (Vitest, 16 tests) |
+| `bun run test` | server test suite (isolated in-memory SQLite, 81 tests) |
+| `npm --prefix client test` | client component tests (Vitest, 17 tests) |
 | `npm --prefix client-admin test` | admin portal tests (Vitest, 6 tests) |
 | `bun run db:promote <email>` | grant admin role (seeded demo is already admin) |
 | `bun run schema:dump` | regenerate `src/schema.graphql` from `src/schema.ts` |

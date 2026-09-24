@@ -42,10 +42,13 @@ describe("ops", () => {
     source.exec("CREATE TABLE t (id TEXT);");
     source.close();
 
+    const seen = new Set<string>();
     for (let i = 0; i < 3; i++) {
-      await backupDatabase(dbPath, join(dir, "backups"), 2);
-      await Bun.sleep(1100);
+      const r = await backupDatabase(dbPath, join(dir, "backups"), 2);
+      seen.add(r.path);
+      await Bun.sleep(5);
     }
+    expect(seen.size).toBe(3);
     const { readdir } = await import("node:fs/promises");
     const files = (await readdir(join(dir, "backups"))).filter((f) => f.endsWith(".db"));
     expect(files.length).toBe(2);

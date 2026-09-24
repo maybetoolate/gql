@@ -23,6 +23,11 @@ export type BookSort =
   | 'RATING'
   | 'TITLE';
 
+export type ChallengeStatus =
+  | 'ACTIVE'
+  | 'ENDED'
+  | 'UPCOMING';
+
 export type NotificationType =
   | 'FOLLOW'
   | 'REVIEW_COMMENT'
@@ -241,6 +246,45 @@ export type GetStatsQueryVariables = Exact<{
 
 
 export type GetStatsQuery = { readingStats: Array<{ __typename: 'MonthlyCount', month: number, finished: number }> };
+
+export type GetChallengesQueryVariables = Exact<{
+  status?: ChallengeStatus | null | undefined;
+}>;
+
+
+export type GetChallengesQuery = { challenges: Array<{ __typename: 'Challenge', id: string, name: string, description: string | null, startAt: number, endAt: number, target: number, status: ChallengeStatus, memberCount: number, isMember: boolean, myProgress: number }> };
+
+export type GetChallengeQueryVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type GetChallengeQuery = { challenge: { __typename: 'Challenge', id: string, name: string, description: string | null, startAt: number, endAt: number, target: number, status: ChallengeStatus, memberCount: number, isMember: boolean, myProgress: number, leaderboard: Array<{ __typename: 'ChallengeEntry', finished: number, percent: number, user: { __typename: 'User', id: string, name: string } }> } | null };
+
+export type CreateChallengeMutationVariables = Exact<{
+  name: string;
+  description?: string | null | undefined;
+  startAt: number;
+  endAt: number;
+  target: number;
+}>;
+
+
+export type CreateChallengeMutation = { createChallenge: { __typename: 'Challenge', id: string, name: string } };
+
+export type JoinChallengeMutationVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type JoinChallengeMutation = { joinChallenge: { __typename: 'Challenge', id: string, isMember: boolean } };
+
+export type LeaveChallengeMutationVariables = Exact<{
+  id: string | number;
+}>;
+
+
+export type LeaveChallengeMutation = { leaveChallenge: boolean };
 
 export type GetPrefsQueryVariables = Exact<{ [key: string]: never; }>;
 
