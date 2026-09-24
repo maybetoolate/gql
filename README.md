@@ -1,5 +1,7 @@
 # Bookshelf — Hono + Apollo GraphQL + SQLite/Drizzle + React
 
+[![CI](https://github.com/maybetoolate/gql/actions/workflows/ci.yml/badge.svg)](https://github.com/maybetoolate/gql/actions/workflows/ci.yml)
+
 Full-stack GraphQL starter: Bun + Hono API with Apollo Server 5,
 SQLite persistence via Drizzle ORM, JWT auth, and a React + Apollo Client
 frontend with GraphQL Codegen types.
