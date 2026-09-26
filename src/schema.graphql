@@ -275,6 +275,7 @@
     goal(year: Int!): ReadingGoal
     exportData: String!
     exportCsv: String!
+    similarBooks(title: String!, author: String, limit: Int = 5): [Book!]!
     readingStats(year: Int!): [MonthlyCount!]!
     challenges(status: ChallengeStatus, limit: Int = 20, offset: Int = 0): [Challenge!]!
     challenge(id: ID!): Challenge

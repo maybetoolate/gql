@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useLazyQuery } from "@apollo/client";
 import {
   BrowserRouter,
@@ -84,6 +84,7 @@ import {
   SET_GOAL,
   SET_PREFS,
   SET_SHELF_STATUS,
+  SIMILAR_BOOKS,
   TOGGLE_FAVORITE,
   TOGGLE_REVIEW_LIKE,
   UNFOLLOW_USER,
@@ -111,6 +112,8 @@ import type {
   GetPrefsQuery,
   GetRecommendationsQuery,
   GetShelfQuery,
+  SimilarBooksQuery,
+  SimilarBooksQueryVariables,
   GetStatsQuery,
   GetTagsQuery,
   GetUnreadCountQuery,
@@ -674,6 +677,29 @@ export function BooksView({ onOpen }: { onOpen?: (id: string) => void }) {
   const [addBook] = useMutation(ADD_BOOK, { refetchQueries: [GET_BOOKS] });
   const open = onOpen ?? (() => {});
 
+  const [fetchSimilar] = useLazyQuery<SimilarBooksQuery, SimilarBooksQueryVariables>(
+    SIMILAR_BOOKS,
+  );
+  const [similar, setSimilar] = useState<SimilarBooksQuery["similarBooks"]>([]);
+  useEffect(() => {
+    const q = title.trim();
+    if (q.length < 3) {
+      setSimilar([]);
+      return;
+    }
+    const id = setTimeout(async () => {
+      try {
+        const res = await fetchSimilar({
+          variables: { title: q, author: author.trim() || null },
+        });
+        setSimilar(res.data?.similarBooks ?? []);
+      } catch {
+        setSimilar([]);
+      }
+    }, 400);
+    return () => clearTimeout(id);
+  }, [title, author, fetchSimilar]);
+
   const connection = data?.booksConnection;
   const books = [
     ...(connection?.edges ?? []),
@@ -789,6 +815,12 @@ export function BooksView({ onOpen }: { onOpen?: (id: string) => void }) {
             </form>
           </CardContent>
         </Card>
+      )}
+      {user && similar.length > 0 && (
+        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2.5">
+          {t.books.similarHint}{" "}
+          {similar.map((b) => `${b.title} by ${b.author}`).join(" · ")}
+        </p>
       )}
       {loading && <p className="text-muted-foreground py-4">{t.common.loading}</p>}
       {error && <p className="text-destructive bg-destructive/10 border p-2.5 rounded-md">{t.common.errorPrefix}{error.message}</p>}

@@ -360,6 +360,7 @@ export const typeDefs = `#graphql
     goal(year: Int!): ReadingGoal
     exportData: String!
     exportCsv: String!
+    similarBooks(title: String!, author: String, limit: Int = 5): [Book!]!
     readingStats(year: Int!): [MonthlyCount!]!
     challenges(status: ChallengeStatus, limit: Int = 20, offset: Int = 0): [Challenge!]!
     challenge(id: ID!): Challenge
@@ -1096,6 +1097,28 @@ export const resolvers = {
     ): Promise<number> => countBooks(args),
     booksConnection: (_: unknown, args: ConnectionArgs) =>
       listBooksConnection(args),
+    similarBooks: async (
+      _: unknown,
+      args: { title: string; author?: string | null; limit?: number | null },
+    ): Promise<Book[]> => {
+      const title = args.title.trim();
+      if (!title) return [];
+      const limit = Math.min(Math.max(args.limit ?? 5, 1), 20);
+      const byTitle = await listBooks(
+        { search: title, limit, sort: "NEWEST" },
+        true,
+      );
+      const author = args.author?.trim().toLowerCase();
+      const ranked = byTitle
+        .map((b) => ({
+          book: b,
+          score:
+            (author && b.author.toLowerCase() === author ? 2 : 0) +
+            (b.title.toLowerCase() === title.toLowerCase() ? 1 : 0),
+        }))
+        .sort((a, b) => b.score - a.score || b.book.createdAt - a.book.createdAt);
+      return ranked.slice(0, limit).map((r) => r.book);
+    },
     book: async (_: unknown, args: { id: string }): Promise<Book | null> => {
       const rows = await db.select().from(books).where(eq(books.id, args.id));
       return rows[0] ?? null;

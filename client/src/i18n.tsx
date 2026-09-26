@@ -107,6 +107,7 @@ const en = {
     noResults: "No books found — try a different search.",
     loadMore: "Load more",
     tagTitle: (n: number) => `${n} books`,
+    similarHint: "Already in the catalog — is it one of these?",
   },
   importView: {
     loginRequired: "Log in to import or export.",
@@ -326,6 +327,7 @@ const es: Dict = {
     noResults: "Sin resultados — prueba otra búsqueda.",
     loadMore: "Cargar más",
     tagTitle: (n: number) => `${n} libros`,
+    similarHint: "Ya está en el catálogo — ¿es uno de estos?",
   },
   importView: {
     loginRequired: "Inicia sesión para importar o exportar.",

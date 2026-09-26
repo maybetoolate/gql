@@ -4,7 +4,8 @@ import { MockedProvider } from "@apollo/client/testing";
 import { AuthProvider } from "./auth";
 import { LanguageProvider } from "./i18n";
 import { BooksView } from "./App";
-import { GET_BOOKS, GET_TAGS } from "./queries";
+import { GET_BOOKS, GET_TAGS, GET_ME, SIMILAR_BOOKS } from "./queries";
+import { ACCESS_KEY } from "./apollo-client";
 
 const BOOK = {
   __typename: "Book",
@@ -113,8 +114,7 @@ describe("books list", () => {
     });
   });
 
-  test("load more appends the next page", async () => {
-    const BOOK2 = { ...BOOK, id: "b2", title: "Foundation" };
+  test("load more appends the next page", async () => {    const BOOK2 = { ...BOOK, id: "b2", title: "Foundation" };
     const pageMocks = [
       mocks[0]!,
       {
@@ -147,5 +147,72 @@ describe("books list", () => {
     });
     expect(screen.getByText("Dune")).toBeInTheDocument();
     expect(screen.queryByText("Load more")).toBeNull();
+  });
+
+  test("typing a known title shows the duplicate hint", async () => {
+    localStorage.setItem(ACCESS_KEY, "token-1");
+    const authedMocks = [
+      {
+        request: { query: GET_ME },
+        result: {
+          data: {
+            me: { __typename: "User", id: "u1", email: "h@example.com", name: "Hint" },
+          },
+        },
+      },
+      {
+        request: { query: GET_TAGS, variables: { limit: 50 } },
+        result: { data: { tags: [] } },
+      },
+      {
+        request: {
+          query: GET_BOOKS,
+          variables: { search: null, tags: null, sort: "NEWEST", first: 20 },
+        },
+        result: {
+          data: {
+            booksConnection: {
+              __typename: "BookConnection",
+              totalCount: 0,
+              edges: [],
+              pageInfo: { __typename: "PageInfo", hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+      {
+        request: { query: SIMILAR_BOOKS, variables: { title: "Dune", author: null } },
+        result: {
+          data: {
+            similarBooks: [
+              { __typename: "Book", id: "b1", title: "Dune", author: "Frank Herbert" },
+            ],
+          },
+        },
+      },
+    ];
+    render(
+      <MockedProvider mocks={authedMocks} addTypename={false}>
+        <LanguageProvider>
+          <AuthProvider>
+            <BooksView onOpen={() => {}} />
+          </AuthProvider>
+        </LanguageProvider>
+      </MockedProvider>,
+    );
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText("Title")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText("Title"), {
+      target: { value: "Dune" },
+    });
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(/Already in the catalog/)).toBeInTheDocument();
+      },
+      { timeout: 3000 },
+    );
   });
 });

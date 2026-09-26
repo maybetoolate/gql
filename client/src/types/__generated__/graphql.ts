@@ -247,6 +247,14 @@ export type GetStatsQueryVariables = Exact<{
 
 export type GetStatsQuery = { readingStats: Array<{ __typename: 'MonthlyCount', month: number, finished: number }> };
 
+export type SimilarBooksQueryVariables = Exact<{
+  title: string;
+  author?: string | null | undefined;
+}>;
+
+
+export type SimilarBooksQuery = { similarBooks: Array<{ __typename: 'Book', id: string, title: string, author: string }> };
+
 export type GetChallengesQueryVariables = Exact<{
   status?: ChallengeStatus | null | undefined;
 }>;
