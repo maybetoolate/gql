@@ -80,6 +80,8 @@ import {
   MARK_READ,
   REMOVE_FROM_SHELF,
   REMOVE_TAG,
+  REQUEST_RESET,
+  RESET_PASSWORD,
   CREATE_CHALLENGE,
   SET_GOAL,
   SET_PREFS,
@@ -142,6 +144,88 @@ function Stars({ value }: { value: number }) {
   );
 }
 
+export function ForgotForm({ onBack }: { onBack: () => void }) {
+  const t = useT();
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [requestReset] = useMutation(REQUEST_RESET);
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        await requestReset({ variables: { email } });
+        setSent(true);
+      }}
+      className="flex flex-col min-[480px]:flex-row gap-2 min-[480px]:items-center"
+    >
+      <Input
+        className="w-full min-[480px]:w-auto"
+        placeholder={t.auth.email}
+        value={email}
+        onChange={(e) => setEmail(e.currentTarget.value)}
+      />
+      <Button size="sm" type="submit" className="w-full min-[480px]:w-auto">{t.auth.sendReset}</Button>
+      <Button size="sm" variant="ghost" type="button" onClick={onBack}>
+        {t.auth.backToLogin}
+      </Button>
+      {sent && <span className="text-muted-foreground text-[13px]">{t.auth.resetSent}</span>}
+    </form>
+  );
+}
+
+export function ResetPasswordView() {
+  const t = useT();
+  const navigate = useNavigate();
+  const { setSession } = useAuth();
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [reset] = useMutation(RESET_PASSWORD);
+  const token = new URLSearchParams(window.location.hash.slice(1)).get("token");
+  if (!token) {
+    return (
+      <Card className="mt-4">
+        <CardContent className="p-4">
+          <p>{t.reset.invalid}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <Card className="mt-4">
+      <CardContent className="p-4 grid gap-2">
+        <h2 className="text-xl font-bold">{t.reset.title}</h2>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setError(null);
+            try {
+              const res = await reset({ variables: { token, newPassword: password } });
+              const pair = res.data?.resetPassword;
+              if (!pair) throw new Error(t.common.failed);
+              await setSession(pair.token, pair.refreshToken);
+              window.history.replaceState(null, "", "/");
+              navigate("/books");
+            } catch (err) {
+              setError(err instanceof Error ? err.message : t.common.failed);
+            }
+          }}
+          className="flex flex-col min-[480px]:flex-row gap-2"
+        >
+          <Input
+            placeholder={t.reset.newPh}
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+          />
+          <Button type="submit">{t.reset.submit}</Button>
+        </form>
+        {error && <span className="text-destructive text-[13px]">{error}</span>}
+      </CardContent>
+    </Card>
+  );
+}
+
+
 function AuthPanel() {
   const { user, login, register, logout, logoutAll } = useAuth();
   const t = useT();
@@ -150,6 +234,7 @@ function AuthPanel() {
   const [password, setPassword] = useState("password123");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [forgotMode, setForgotMode] = useState(false);
 
   if (user) {
     return (
@@ -180,6 +265,9 @@ function AuthPanel() {
   return (
     <Card className="mt-4">
       <CardContent className="p-4">
+        {forgotMode ? (
+          <ForgotForm onBack={() => setForgotMode(false)} />
+        ) : (
         <form onSubmit={submit} className="flex flex-col min-[480px]:flex-row gap-2 min-[480px]:items-center min-[480px]:flex-wrap">
           <Button type="button" size="sm" variant="ghost" className="w-full min-[480px]:w-auto" onClick={() => setMode(mode === "login" ? "register" : "login")}>
             {mode === "login" ? t.auth.needAccount : t.auth.haveAccount}
@@ -196,11 +284,23 @@ function AuthPanel() {
             onChange={(e) => setPassword(e.currentTarget.value)}
           />
           <Button size="sm" type="submit" className="w-full min-[480px]:w-auto">{mode === "login" ? t.auth.login : t.auth.register}</Button>
+          {mode === "login" && (
+            <Button
+              size="sm"
+              variant="link"
+              type="button"
+              className="w-full min-[480px]:w-auto"
+              onClick={() => setForgotMode(true)}
+            >
+              {t.auth.forgot}
+            </Button>
+          )}
           {error && <span className="text-destructive text-[13px]">{error}</span>}
           <span className="text-muted-foreground text-[13px]">
             {t.auth.or} <a className="underline" href="/auth/google">Google</a> · <a className="underline" href="/auth/github">GitHub</a>
           </span>
         </form>
+        )}
       </CardContent>
     </Card>
   );
@@ -1929,6 +2029,7 @@ function Shell() {
             <Route path="/import" element={<ImportView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="/challenges" element={<ChallengesView />} />
+            <Route path="/reset-password" element={<ResetPasswordView />} />
             <Route path="/book/:id" element={<BookDetailRoute />} />
             <Route path="*" element={<Navigate to="/books" replace />} />
           </Routes>

@@ -15,6 +15,7 @@ interface AuthState {
   user: GetMeQuery["me"];
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
+  setSession: (token: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
   logoutAll: () => Promise<void>;
   authLoading: boolean;
@@ -110,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ token, user: data?.me ?? null, login, register, logout, logoutAll, authLoading: loading }}
+      value={{ token, user: data?.me ?? null, login, register, setSession: save, logout, logoutAll, authLoading: loading }}
     >
       {children}
     </AuthContext.Provider>

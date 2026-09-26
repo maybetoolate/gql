@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { sign, verify } from "hono/jwt";
 import { and, eq, isNull, lt } from "drizzle-orm";
 import { db } from "./db";
-import { refreshTokens, users, type User } from "./db/schema";
+import { passwordResets, refreshTokens, users, type User } from "./db/schema";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 if (!process.env.JWT_SECRET) {
@@ -131,6 +131,50 @@ export function startSessionPruner(intervalMs = 60 * 60 * 1000): () => void {
 
 export function getJwtSecret(): string {
   return JWT_SECRET;
+}
+
+export const PASSWORD_RESET_TTL_S = Number(
+  process.env.PASSWORD_RESET_TTL_S ?? 60 * 60,
+);
+
+/** Returns a one-time token, or null when the email is unknown (no enumeration). */
+export async function requestPasswordReset(email: string): Promise<string | null> {
+  const normalized = email.trim().toLowerCase();
+  const rows = await db.select().from(users).where(eq(users.email, normalized));
+  const user = rows[0];
+  if (!user) return null;
+  const token = randomBytes(32).toString("hex");
+  await db.insert(passwordResets).values({
+    userId: user.id,
+    tokenHash: hashRefreshToken(token),
+    expiresAt: Date.now() + PASSWORD_RESET_TTL_S * 1000,
+  });
+  return token;
+}
+
+export async function resetPasswordWithToken(
+  presented: string,
+  newPassword: string,
+): Promise<{ user: User; pair: AuthPair } | null> {
+  const now = Date.now();
+  const rows = await db
+    .select()
+    .from(passwordResets)
+    .where(eq(passwordResets.tokenHash, hashRefreshToken(presented.trim())));
+  const reset = rows[0];
+  if (!reset || reset.usedAt != null || reset.expiresAt <= now) return null;
+  await db
+    .update(passwordResets)
+    .set({ usedAt: now })
+    .where(eq(passwordResets.id, reset.id));
+
+  const passwordHash = await hashPassword(newPassword);
+  await db.update(users).set({ passwordHash }).where(eq(users.id, reset.userId));
+  await revokeAllSessions(reset.userId);
+  const userRows = await db.select().from(users).where(eq(users.id, reset.userId));
+  const user = userRows[0];
+  if (!user) return null;
+  return { user, pair: await issueAuthPair(user) };
 }
 
 /** Resolve the user for a REST endpoint from an Authorization header value. */

@@ -300,6 +300,8 @@
     refreshToken(token: String!): AuthPayload!
     logout(token: String!): Boolean!
     logoutAll: Boolean!
+    requestPasswordReset(email: String!): Boolean!
+    resetPassword(token: String!, newPassword: String!): AuthPayload!
     addBook(
       title: String!
       author: String!

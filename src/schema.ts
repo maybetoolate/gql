@@ -28,7 +28,16 @@ import {
   type User,
 } from "./db/schema";
 import { fireAndForget, sendEmail } from "./email";
-import { hashPassword, issueAuthPair, revokeAllSessions, revokeRefreshToken, rotateRefreshToken, verifyPassword } from "./auth";
+import {
+  hashPassword,
+  issueAuthPair,
+  requestPasswordReset,
+  resetPasswordWithToken,
+  revokeAllSessions,
+  revokeRefreshToken,
+  rotateRefreshToken,
+  verifyPassword,
+} from "./auth";
 import { deleteCoverForBook } from "./covers";
 import type { Loaders } from "./loaders";
 
@@ -385,6 +394,8 @@ export const typeDefs = `#graphql
     refreshToken(token: String!): AuthPayload!
     logout(token: String!): Boolean!
     logoutAll: Boolean!
+    requestPasswordReset(email: String!): Boolean!
+    resetPassword(token: String!, newPassword: String!): AuthPayload!
     addBook(
       title: String!
       author: String!
@@ -1573,6 +1584,39 @@ export const resolvers = {
       const user = requireUser(ctx);
       await revokeAllSessions(user.id);
       return true;
+    },
+    requestPasswordReset: async (
+      _: unknown,
+      args: { email: string },
+    ): Promise<boolean> => {
+      const token = await requestPasswordReset(args.email);
+      if (token) {
+        const base = process.env.CLIENT_URL ?? "http://localhost:5173";
+        fireAndForget(
+          sendEmail({
+            to: args.email.trim().toLowerCase(),
+            subject: "Reset your Bookshelf password",
+            body: `Reset your password here (valid 1 hour): ${base}/reset-password#token=${token}`,
+          }),
+        );
+      }
+      // Always true: never reveal whether the email exists.
+      return true;
+    },
+    resetPassword: async (
+      _: unknown,
+      args: { token: string; newPassword: string },
+    ) => {
+      if (args.newPassword.length < 6) {
+        throw badInput("New password too short (min 6)");
+      }
+      const result = await resetPasswordWithToken(args.token, args.newPassword);
+      if (!result) {
+        throw new GraphQLError("Invalid or expired reset token", {
+          extensions: { code: "UNAUTHENTICATED" },
+        });
+      }
+      return { ...result.pair, user: toPublicUser(result.user) };
     },
     updateProfile: async (_: unknown, args: { name: string }, ctx: GraphQLContext) => {
       const user = requireUser(ctx);
