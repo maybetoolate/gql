@@ -144,8 +144,7 @@ describe("refresh sessions", () => {
     }
   });
 
-  test("password reset flow", async () => {
-    // Unknown emails still return true (no enumeration).
+  test("password reset flow", async () => {    // Unknown emails still return true (no enumeration).
     expect(
       expectOk<boolean>(
         await exec(server, `mutation { requestPasswordReset(email: "nobody@example.com") }`),
@@ -208,5 +207,68 @@ describe("refresh sessions", () => {
       ),
       "login",
     );
+  });
+
+  test("concurrent redeem consumes the token once", async () => {
+    const created = await createTestUser("resetrace");
+    const { requestPasswordReset } = await import("../src/auth");
+    const token = (await requestPasswordReset(created.user.email))!;
+    const attempt = () =>
+      exec(
+        server,
+        `mutation($t: String!) { resetPassword(token: $t, newPassword: "racepass123") { token } }`,
+        { t: token },
+      );
+    const [a, b] = await Promise.all([attempt(), attempt()]);
+    const succeeded = [a, b].filter((r) => (r.errors ?? []).length === 0);
+    const failed = [a, b].filter((r) => (r.errors ?? []).length > 0);
+    expect(succeeded).toHaveLength(1);
+    expect(failed[0]!.errors![0]!.code).toBe("UNAUTHENTICATED");
+  });
+
+  test("successful reset invalidates other outstanding tokens", async () => {
+    const created = await createTestUser("resetmulti");
+    const { requestPasswordReset } = await import("../src/auth");
+    const first = (await requestPasswordReset(created.user.email))!;
+    const second = (await requestPasswordReset(created.user.email))!;
+    expectOk(
+      await exec(
+        server,
+        `mutation($t: String!) { resetPassword(token: $t, newPassword: "multi123") { token } }`,
+        { t: second },
+      ),
+      "resetPassword",
+    );
+    expectCode(
+      await exec(
+        server,
+        `mutation($t: String!) { resetPassword(token: $t, newPassword: "multi123") { token } }`,
+        { t: first },
+      ),
+      "UNAUTHENTICATED",
+    );
+  });
+
+  test("resolver request path inserts in the background", async () => {
+    const created = await createTestUser("resetbg");
+    const { db } = await import("../src/db");
+    const { passwordResets } = await import("../src/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const res = await exec(
+      server,
+      `mutation($e: String!) { requestPasswordReset(email: $e) }`,
+      { e: created.user.email },
+    );
+    expectOk<boolean>(res, "requestPasswordReset");
+    const deadline = Date.now() + 2000;
+    for (;;) {
+      const rows = await db
+        .select({ id: passwordResets.id })
+        .from(passwordResets)
+        .where(eq(passwordResets.userId, created.user.id));
+      if (rows.length > 0) break;
+      if (Date.now() > deadline) throw new Error("background insert never ran");
+      await Bun.sleep(25);
+    }
   });
 });

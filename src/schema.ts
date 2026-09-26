@@ -1589,17 +1589,21 @@ export const resolvers = {
       _: unknown,
       args: { email: string },
     ): Promise<boolean> => {
-      const token = await requestPasswordReset(args.email);
-      if (token) {
-        const base = process.env.CLIENT_URL ?? "http://localhost:5173";
-        fireAndForget(
-          sendEmail({
-            to: args.email.trim().toLowerCase(),
+      const email = args.email.trim().toLowerCase();
+      // Constant-time response: lookup, insert, and email all happen off the
+      // response path so timing reveals nothing about whether the email exists.
+      fireAndForget(
+        (async () => {
+          const token = await requestPasswordReset(email);
+          if (!token) return;
+          const base = process.env.CLIENT_URL ?? "http://localhost:5173";
+          await sendEmail({
+            to: email,
             subject: "Reset your Bookshelf password",
             body: `Reset your password here (valid 1 hour): ${base}/reset-password#token=${token}`,
-          }),
-        );
-      }
+          });
+        })(),
+      );
       // Always true: never reveal whether the email exists.
       return true;
     },

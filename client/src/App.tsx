@@ -148,13 +148,24 @@ export function ForgotForm({ onBack }: { onBack: () => void }) {
   const t = useT();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [requestReset] = useMutation(REQUEST_RESET);
   return (
     <form
       onSubmit={async (e) => {
         e.preventDefault();
-        await requestReset({ variables: { email } });
-        setSent(true);
+        if (sending) return;
+        setSending(true);
+        setError(null);
+        try {
+          await requestReset({ variables: { email } });
+          setSent(true);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : t.common.failed);
+        } finally {
+          setSending(false);
+        }
       }}
       className="flex flex-col min-[480px]:flex-row gap-2 min-[480px]:items-center"
     >
@@ -164,11 +175,12 @@ export function ForgotForm({ onBack }: { onBack: () => void }) {
         value={email}
         onChange={(e) => setEmail(e.currentTarget.value)}
       />
-      <Button size="sm" type="submit" className="w-full min-[480px]:w-auto">{t.auth.sendReset}</Button>
+      <Button size="sm" type="submit" disabled={sending} className="w-full min-[480px]:w-auto">{t.auth.sendReset}</Button>
       <Button size="sm" variant="ghost" type="button" onClick={onBack}>
         {t.auth.backToLogin}
       </Button>
       {sent && <span className="text-muted-foreground text-[13px]">{t.auth.resetSent}</span>}
+      {error && <span className="text-destructive text-[13px]">{error}</span>}
     </form>
   );
 }
