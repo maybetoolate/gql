@@ -14,8 +14,7 @@ describe("password reset", () => {
     window.location.hash = "";
   });
 
-  test("forgot form requests a link", async () => {
-    const noop = () => {};
+  test("forgot form requests a link", async () => {    const noop = () => {};
     render(
       <MockedProvider
         mocks={[
@@ -101,5 +100,37 @@ describe("password reset", () => {
       </MockedProvider>,
     );
     expect(await screen.findByText(/invalid or expired/)).toBeInTheDocument();
+  });
+
+  test("forgot form surfaces request failures", async () => {
+    const noop = () => {};
+    render(
+      <MockedProvider
+        mocks={[
+          {
+            request: { query: REQUEST_RESET, variables: { email: "r@example.com" } },
+            error: new Error("Network down"),
+          },
+        ]}
+        addTypename={false}
+      >
+        <LanguageProvider>
+          <AuthProvider>
+            <ForgotForm onBack={noop} />
+          </AuthProvider>
+        </LanguageProvider>
+      </MockedProvider>,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Email"), {
+      target: { value: "r@example.com" },
+    });
+    const submit = screen.getByText("Send reset link");
+    fireEvent.click(submit);
+
+    await waitFor(() => {
+      expect(screen.getByText("Network down")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/reset link is on its way/)).toBeNull();
   });
 });

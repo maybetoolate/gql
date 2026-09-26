@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { sign, verify } from "hono/jwt";
-import { and, eq, isNull, lt } from "drizzle-orm";
+import { and, eq, gt, isNull, lt } from "drizzle-orm";
 import { db } from "./db";
 import { passwordResets, refreshTokens, users, type User } from "./db/schema";
 
@@ -157,24 +157,52 @@ export async function resetPasswordWithToken(
   newPassword: string,
 ): Promise<{ user: User; pair: AuthPair } | null> {
   const now = Date.now();
-  const rows = await db
-    .select()
-    .from(passwordResets)
-    .where(eq(passwordResets.tokenHash, hashRefreshToken(presented.trim())));
-  const reset = rows[0];
-  if (!reset || reset.usedAt != null || reset.expiresAt <= now) return null;
-  await db
-    .update(passwordResets)
-    .set({ usedAt: now })
-    .where(eq(passwordResets.id, reset.id));
+  const hash = hashRefreshToken(presented.trim());
+  return db.transaction(async (tx) => {
+    // Atomic consume: only one concurrent request can match an unused,
+    // unexpired token, so a leaked link is single-use even under races.
+    const [reset] = await tx
+      .update(passwordResets)
+      .set({ usedAt: now })
+      .where(
+        and(
+          eq(passwordResets.tokenHash, hash),
+          isNull(passwordResets.usedAt),
+          gt(passwordResets.expiresAt, now),
+        ),
+      )
+      .returning();
+    if (!reset) return null;
+    // Invalidate any other outstanding reset tokens for this user.
+    await tx
+      .update(passwordResets)
+      .set({ usedAt: now })
+      .where(
+        and(
+          eq(passwordResets.userId, reset.userId),
+          isNull(passwordResets.usedAt),
+        ),
+      );
 
-  const passwordHash = await hashPassword(newPassword);
-  await db.update(users).set({ passwordHash }).where(eq(users.id, reset.userId));
-  await revokeAllSessions(reset.userId);
-  const userRows = await db.select().from(users).where(eq(users.id, reset.userId));
-  const user = userRows[0];
-  if (!user) return null;
-  return { user, pair: await issueAuthPair(user) };
+    const passwordHash = await hashPassword(newPassword);
+    await tx.update(users).set({ passwordHash }).where(eq(users.id, reset.userId));
+    await tx
+      .update(refreshTokens)
+      .set({ revokedAt: now })
+      .where(
+        and(eq(refreshTokens.userId, reset.userId), isNull(refreshTokens.revokedAt)),
+      );
+    const refreshToken = randomBytes(32).toString("hex");
+    await tx.insert(refreshTokens).values({
+      userId: reset.userId,
+      tokenHash: hashRefreshToken(refreshToken),
+      expiresAt: now + REFRESH_TOKEN_TTL_S * 1000,
+    });
+    const userRows = await tx.select().from(users).where(eq(users.id, reset.userId));
+    const user = userRows[0];
+    if (!user) return null;
+    return { user, pair: { token: await signToken(user), refreshToken } };
+  });
 }
 
 /** Resolve the user for a REST endpoint from an Authorization header value. */
