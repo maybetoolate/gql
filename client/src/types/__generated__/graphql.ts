@@ -98,6 +98,21 @@ export type LogoutAllMutationVariables = Exact<{ [key: string]: never; }>;
 
 export type LogoutAllMutation = { logoutAll: boolean };
 
+export type RequestResetMutationVariables = Exact<{
+  email: string;
+}>;
+
+
+export type RequestResetMutation = { requestPasswordReset: boolean };
+
+export type ResetPasswordMutationVariables = Exact<{
+  token: string;
+  newPassword: string;
+}>;
+
+
+export type ResetPasswordMutation = { resetPassword: { __typename: 'AuthPayload', token: string, refreshToken: string } };
+
 export type AddBookMutationVariables = Exact<{
   title: string;
   author: string;

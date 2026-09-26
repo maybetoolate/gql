@@ -346,3 +346,20 @@ export const oauthAccounts = sqliteTable(
 );
 
 export type OAuthAccount = typeof oauthAccounts.$inferSelect;
+
+export const passwordResets = sqliteTable("password_resets", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: integer("expires_at").notNull(),
+  usedAt: integer("used_at"),
+  createdAt: integer("created_at")
+    .notNull()
+    .$defaultFn(() => Date.now()),
+});
+
+export type PasswordReset = typeof passwordResets.$inferSelect;

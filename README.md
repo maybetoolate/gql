@@ -11,7 +11,7 @@ frontend with GraphQL Codegen types.
 - **Books catalog** — list, search (FTS5 prefix search over title/author/description), cursor pagination (`booksConnection` with opaque cursors, stable under inserts), duplicate warnings on add (`similarBooks`), add / edit / delete (creator-only)
 - **Tags** — normalized tags with per-book add/remove, `tags` query with counts, single/multi-tag AND filtering
 - **Sorting** — `NEWEST` / `TITLE` / `AUTHOR` / `RATING` (avg rating, unrated last)
-- **Auth** — register / login (bcrypt via `Bun.password`), short-lived JWT access tokens + rotating opaque refresh tokens (sha256-hashed at rest), `refreshToken` rotation, per-session `logout` and global `logoutAll`, **Google/GitHub OAuth** (`/auth/:provider` → callback, link-or-create account)
+- **Auth** — register / login (bcrypt via `Bun.password`), short-lived JWT access tokens + rotating opaque refresh tokens (sha256-hashed at rest), `refreshToken` rotation, per-session `logout` and global `logoutAll`, **password reset** via emailed one-time link (auto-login, old sessions revoked), **Google/GitHub OAuth** (`/auth/:provider` → callback, link-or-create account)
 - **Follows + feed** — follow/unfollow readers, follower counts, `activityFeed` merging followed users' reviews, shelf updates, and favorites
 - **Notifications** — inbox for follows, review likes, and comments (self-actions excluded, unlikes/unfollows retract, comment deletes cascade), unread counts, mark one/all read, per-type preferences; email seam logs in dev, POSTs to `EMAIL_TRANSPORT_URL` when set
 - **Account settings** — display-name update, password change (rotates all sessions, returns a fresh pair), notification preference toggles; Settings tab
@@ -84,8 +84,8 @@ Seeded login: `demo@example.com` / `password123`.
 |---|---|
 | `bun run dev` | server + client concurrently |
 | `bun run start` | server only (migrates + seeds automatically) |
-| `bun run test` | server test suite (isolated in-memory SQLite, 87 tests) |
-| `npm --prefix client test` | client component tests (Vitest, 18 tests) |
+| `bun run test` | server test suite (isolated in-memory SQLite, 88 tests) |
+| `npm --prefix client test` | client component tests (Vitest, 21 tests) |
 | `npm --prefix client-admin test` | admin portal tests (Vitest, 6 tests) |
 | `bun run db:promote <email>` | grant admin role (seeded demo is already admin) |
 | `bun run schema:dump` | regenerate `src/schema.graphql` from `src/schema.ts` |

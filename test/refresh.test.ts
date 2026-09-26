@@ -143,4 +143,70 @@ describe("refresh sessions", () => {
       stop();
     }
   });
+
+  test("password reset flow", async () => {
+    // Unknown emails still return true (no enumeration).
+    expect(
+      expectOk<boolean>(
+        await exec(server, `mutation { requestPasswordReset(email: "nobody@example.com") }`),
+        "requestPasswordReset",
+      ),
+    ).toBe(true);
+
+    const { requestPasswordReset } = await import("../src/auth");
+    const created = await createTestUser("resetme");
+    const token = await requestPasswordReset(created.user.email);
+    expect(token).toBeTruthy();
+
+    expectCode(
+      await exec(server, `mutation { resetPassword(token: "junk", newPassword: "newpass123") { token } }`),
+      "UNAUTHENTICATED",
+    );
+    expectCode(
+      await exec(
+        server,
+        `mutation($t: String!) { resetPassword(token: $t, newPassword: "123") { token } }`,
+        { t: token! },
+      ),
+      "BAD_USER_INPUT",
+    );
+
+    const done = expectOk<{ token: string; refreshToken: string }>(
+      await exec(
+        server,
+        `mutation($t: String!) { resetPassword(token: $t, newPassword: "newpass123") { token refreshToken } }`,
+        { t: token! },
+      ),
+      "resetPassword",
+    );
+    expect(done.refreshToken).toBeTruthy();
+
+    // Single-use: reuse is rejected.
+    expectCode(
+      await exec(
+        server,
+        `mutation($t: String!) { resetPassword(token: $t, newPassword: "newpass123") { token } }`,
+        { t: token! },
+      ),
+      "UNAUTHENTICATED",
+    );
+
+    // Old password dead, new one works.
+    expectCode(
+      await exec(
+        server,
+        `mutation($e: String!) { login(email: $e, password: "password123") { token } }`,
+        { e: created.user.email },
+      ),
+      "UNAUTHENTICATED",
+    );
+    expectOk(
+      await exec(
+        server,
+        `mutation($e: String!) { login(email: $e, password: "newpass123") { token } }`,
+        { e: created.user.email },
+      ),
+      "login",
+    );
+  });
 });
