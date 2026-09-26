@@ -353,6 +353,16 @@ export const GET_STATS = gql`
   }
 `;
 
+export const SIMILAR_BOOKS = gql`
+  query SimilarBooks($title: String!, $author: String) {
+    similarBooks(title: $title, author: $author, limit: 3) {
+      id
+      title
+      author
+    }
+  }
+`;
+
 export const GET_CHALLENGES = gql`
   query GetChallenges($status: ChallengeStatus) {
     challenges(status: $status) {
