@@ -5,6 +5,8 @@ import {
   auditLog,
   books,
   bookTags,
+  challengeMembers,
+  challenges,
   favorites,
   follows,
   notifications,
@@ -145,6 +147,32 @@ export const typeDefs = `#graphql
   type MonthlyCount {
     month: Int!
     finished: Int!
+  }
+
+  enum ChallengeStatus {
+    UPCOMING
+    ACTIVE
+    ENDED
+  }
+
+  type ChallengeEntry {
+    user: User!
+    finished: Int!
+    percent: Int!
+  }
+
+  type Challenge {
+    id: ID!
+    name: String!
+    description: String
+    startAt: Float!
+    endAt: Float!
+    target: Int!
+    status: ChallengeStatus!
+    memberCount: Int!
+    isMember: Boolean!
+    myProgress: Int!
+    leaderboard(limit: Int = 20): [ChallengeEntry!]!
   }
 
   type BookEdge {
@@ -333,6 +361,8 @@ export const typeDefs = `#graphql
     exportData: String!
     exportCsv: String!
     readingStats(year: Int!): [MonthlyCount!]!
+    challenges(status: ChallengeStatus, limit: Int = 20, offset: Int = 0): [Challenge!]!
+    challenge(id: ID!): Challenge
     booksConnection(
       first: Int = 20
       after: String
@@ -386,6 +416,16 @@ export const typeDefs = `#graphql
     setGoal(year: Int!, target: Int!): ReadingGoal!
     deleteGoal(year: Int!): Boolean!
     importBooks(books: [BookImport!]!): ImportResult!
+    createChallenge(
+      name: String!
+      description: String
+      startAt: Float!
+      endAt: Float!
+      target: Int!
+    ): Challenge!
+    joinChallenge(id: ID!): Challenge!
+    leaveChallenge(id: ID!): Boolean!
+    deleteChallenge(id: ID!): Boolean!
     addTagToBook(bookId: ID!, name: String!): Book!
     removeTagFromBook(bookId: ID!, name: String!): Book!
     upsertReview(bookId: ID!, rating: Int!, text: String): Review!
@@ -903,6 +943,43 @@ function bookFilterWhere(
   };
 }
 
+type ChallengeStatus = "UPCOMING" | "ACTIVE" | "ENDED";
+
+/** Classify a challenge using its start and end timestamps. */
+function challengeStatusOf(row: { startAt: number; endAt: number }): ChallengeStatus {
+  const now = Date.now();
+  if (now < row.startAt) return "UPCOMING";
+  if (now > row.endAt) return "ENDED";
+  return "ACTIVE";
+}
+
+/** Count a user's finished shelf items updated within a challenge's inclusive window. */
+async function finishedInWindow(
+  userId: string,
+  startAt: number,
+  endAt: number,
+): Promise<number> {
+  const rows = await db.all<{ n: number }>(
+    sql`SELECT count(*) AS n FROM shelf_items
+        WHERE user_id = ${userId} AND status = 'finished'
+          AND updated_at >= ${startAt} AND updated_at <= ${endAt}`,
+  );
+  return Number(rows[0]?.n ?? 0);
+}
+
+/** Fetch a challenge or report a GraphQL not-found error. */
+async function getChallengeOrThrow(id: string) {
+  const rows = await db.select().from(challenges).where(eq(challenges.id, id));
+  const row = rows[0];
+  if (!row) {
+    throw new GraphQLError("Challenge not found", {
+      extensions: { code: "NOT_FOUND" },
+    });
+  }
+  return row;
+}
+
+/** Add a user's finished-book count and remaining target to a reading goal. */
 async function goalWithProgress(
   userId: string,
   row: typeof readingGoals.$inferSelect,
@@ -1285,6 +1362,7 @@ export const resolvers = {
       if (!rows[0]) return null;
       return goalWithProgress(user.id, rows[0]);
     },
+    /** Return the authenticated user's finished-book counts for each month of a year. */
     readingStats: async (
       _: unknown,
       args: { year: number },
@@ -1308,6 +1386,29 @@ export const resolvers = {
         month: i + 1,
         finished: byMonth.get(i + 1) ?? 0,
       }));
+    },
+    /** List challenges by status, newest end date first, with bounded pagination. */
+    challenges: async (
+      _: unknown,
+      args: { status?: ChallengeStatus | null; limit?: number | null; offset?: number | null },
+    ) => {
+      const limit = Math.min(Math.max(args.limit ?? 20, 1), 50);
+      const offset = Math.max(args.offset ?? 0, 0);
+      const rows = await db
+        .select()
+        .from(challenges)
+        .orderBy(desc(challenges.endAt))
+        .limit(200)
+        .offset(0);
+      const filtered = args.status
+        ? rows.filter((r) => challengeStatusOf(r) === args.status)
+        : rows;
+      return filtered.slice(offset, offset + limit);
+    },
+    /** Find a challenge by ID, returning null when it does not exist. */
+    challenge: async (_: unknown, args: { id: string }) => {
+      const rows = await db.select().from(challenges).where(eq(challenges.id, args.id));
+      return rows[0] ?? null;
     },
     exportData: async (_: unknown, __: unknown, ctx: GraphQLContext): Promise<string> => {
       const user = requireUser(ctx);
@@ -2156,6 +2257,93 @@ export const resolvers = {
         );
       return true;
     },
+    /** Validate and create a challenge, enrolling its creator as the first member. */
+    createChallenge: async (
+      _: unknown,
+      args: {
+        name: string;
+        description?: string | null;
+        startAt: number;
+        endAt: number;
+        target: number;
+      },
+      ctx: GraphQLContext,
+    ) => {
+      const user = requireUser(ctx);
+      const name = args.name.trim();
+      if (!name) throw badInput("Name is required");
+      if (name.length > 120) throw badInput("Name too long (max 120)");
+      if (!Number.isFinite(args.startAt) || !Number.isFinite(args.endAt)) {
+        throw badInput("Invalid dates");
+      }
+      if (args.startAt >= args.endAt) throw badInput("End must be after start");
+      if (!Number.isInteger(args.target) || args.target < 1 || args.target > 1000) {
+        throw badInput("Target must be between 1 and 1000");
+      }
+      const [row] = await db
+        .insert(challenges)
+        .values({
+          name,
+          description: args.description?.trim() || null,
+          startAt: Math.floor(args.startAt),
+          endAt: Math.floor(args.endAt),
+          target: args.target,
+          createdBy: user.id,
+        })
+        .returning();
+      await db
+        .insert(challengeMembers)
+        .values({ challengeId: row.id, userId: user.id })
+        .onConflictDoNothing();
+      return row;
+    },
+    /** Enroll the authenticated user in an existing challenge. */
+    joinChallenge: async (
+      _: unknown,
+      args: { id: string },
+      ctx: GraphQLContext,
+    ) => {
+      const user = requireUser(ctx);
+      const row = await getChallengeOrThrow(args.id);
+      await db
+        .insert(challengeMembers)
+        .values({ challengeId: row.id, userId: user.id })
+        .onConflictDoNothing();
+      return row;
+    },
+    /** Remove the authenticated user's membership from a challenge. */
+    leaveChallenge: async (
+      _: unknown,
+      args: { id: string },
+      ctx: GraphQLContext,
+    ): Promise<boolean> => {
+      const user = requireUser(ctx);
+      await db
+        .delete(challengeMembers)
+        .where(
+          and(
+            eq(challengeMembers.challengeId, args.id),
+            eq(challengeMembers.userId, user.id),
+          ),
+        );
+      return true;
+    },
+    /** Delete a challenge when requested by its creator or an admin. */
+    deleteChallenge: async (
+      _: unknown,
+      args: { id: string },
+      ctx: GraphQLContext,
+    ): Promise<boolean> => {
+      const user = requireUser(ctx);
+      const row = await getChallengeOrThrow(args.id);
+      if (row.createdBy !== user.id && user.role !== "admin") {
+        throw new GraphQLError("Only the creator or an admin can delete this challenge", {
+          extensions: { code: "FORBIDDEN" },
+        });
+      }
+      await db.delete(challenges).where(eq(challenges.id, args.id));
+      return true;
+    },
     importBooks: async (
       _: unknown,
       args: {
@@ -2355,6 +2543,71 @@ export const resolvers = {
   Tag: {
     booksCount: (parent: Tag, _: unknown, ctx: GraphQLContext): Promise<number> =>
       ctx.loaders.tagBooksCount.load(parent.id),
+  },
+
+  Challenge: {
+    /** Resolve the challenge's current time-based status. */
+    status: (parent: { startAt: number; endAt: number }) => challengeStatusOf(parent),
+    /** Count the challenge's enrolled users. */
+    memberCount: async (parent: { id: string }): Promise<number> => {
+      const rows = await db
+        .select({ n: count() })
+        .from(challengeMembers)
+        .where(eq(challengeMembers.challengeId, parent.id));
+      return Number(rows[0]?.n ?? 0);
+    },
+    /** Check whether the current user belongs to the challenge. */
+    isMember: async (
+      parent: { id: string },
+      _: unknown,
+      ctx: GraphQLContext,
+    ): Promise<boolean> => {
+      if (!ctx.user) return false;
+      const rows = await db
+        .select({ id: challengeMembers.id })
+        .from(challengeMembers)
+        .where(
+          and(
+            eq(challengeMembers.challengeId, parent.id),
+            eq(challengeMembers.userId, ctx.user.id),
+          ),
+        )
+        .limit(1);
+      return rows.length > 0;
+    },
+    /** Count the current user's completed books during the challenge. */
+    myProgress: async (
+      parent: { id: string; startAt: number; endAt: number },
+      _: unknown,
+      ctx: GraphQLContext,
+    ): Promise<number> => {
+      if (!ctx.user) return 0;
+      return finishedInWindow(ctx.user.id, parent.startAt, parent.endAt);
+    },
+    /** Rank members by completed books and cap the returned entries. */
+    leaderboard: async (
+      parent: { id: string; startAt: number; endAt: number; target: number },
+      args: { limit?: number | null },
+    ) => {
+      const limit = Math.min(Math.max(args.limit ?? 20, 1), 50);
+      const members = await db
+        .select({ user: users })
+        .from(challengeMembers)
+        .innerJoin(users, eq(challengeMembers.userId, users.id))
+        .where(eq(challengeMembers.challengeId, parent.id));
+      const entries = await Promise.all(
+        members.map(async ({ user }) => {
+          const finished = await finishedInWindow(user.id, parent.startAt, parent.endAt);
+          return {
+            user: toPublicUser(user),
+            finished,
+            percent: Math.min(100, Math.round((finished / parent.target) * 100)),
+          };
+        }),
+      );
+      entries.sort((a, b) => b.finished - a.finished);
+      return entries.slice(0, limit);
+    },
   },
 
   AuditEntry: {

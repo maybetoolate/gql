@@ -253,6 +253,41 @@ export const notificationPrefs = sqliteTable("notification_prefs", {
 
 export type NotificationPrefs = typeof notificationPrefs.$inferSelect;
 
+export const challenges = sqliteTable("challenges", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  description: text("description"),
+  startAt: integer("start_at").notNull(),
+  endAt: integer("end_at").notNull(),
+  target: integer("target").notNull(),
+  createdBy: text("created_by").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  createdAt: integer("created_at")
+    .notNull()
+    .$defaultFn(() => Date.now()),
+});
+
+export const challengeMembers = sqliteTable("challenge_members", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  challengeId: text("challenge_id")
+    .notNull()
+    .references(() => challenges.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  joinedAt: integer("joined_at")
+    .notNull()
+    .$defaultFn(() => Date.now()),
+});
+
+export type Challenge = typeof challenges.$inferSelect;
+export type ChallengeMember = typeof challengeMembers.$inferSelect;
+
 export const refreshTokens = sqliteTable("refresh_tokens", {
   id: text("id")
     .primaryKey()

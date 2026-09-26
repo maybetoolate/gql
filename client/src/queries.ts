@@ -353,6 +353,84 @@ export const GET_STATS = gql`
   }
 `;
 
+export const GET_CHALLENGES = gql`
+  query GetChallenges($status: ChallengeStatus) {
+    challenges(status: $status) {
+      id
+      name
+      description
+      startAt
+      endAt
+      target
+      status
+      memberCount
+      isMember
+      myProgress
+    }
+  }
+`;
+
+export const GET_CHALLENGE = gql`
+  query GetChallenge($id: ID!) {
+    challenge(id: $id) {
+      id
+      name
+      description
+      startAt
+      endAt
+      target
+      status
+      memberCount
+      isMember
+      myProgress
+      leaderboard(limit: 10) {
+        user {
+          id
+          name
+        }
+        finished
+        percent
+      }
+    }
+  }
+`;
+
+export const CREATE_CHALLENGE = gql`
+  mutation CreateChallenge(
+    $name: String!
+    $description: String
+    $startAt: Float!
+    $endAt: Float!
+    $target: Int!
+  ) {
+    createChallenge(
+      name: $name
+      description: $description
+      startAt: $startAt
+      endAt: $endAt
+      target: $target
+    ) {
+      id
+      name
+    }
+  }
+`;
+
+export const JOIN_CHALLENGE = gql`
+  mutation JoinChallenge($id: ID!) {
+    joinChallenge(id: $id) {
+      id
+      isMember
+    }
+  }
+`;
+
+export const LEAVE_CHALLENGE = gql`
+  mutation LeaveChallenge($id: ID!) {
+    leaveChallenge(id: $id)
+  }
+`;
+
 export const GET_PREFS = gql`
   query GetPrefs {
     myNotificationPrefs {

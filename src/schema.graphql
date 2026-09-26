@@ -64,6 +64,32 @@
     finished: Int!
   }
 
+  enum ChallengeStatus {
+    UPCOMING
+    ACTIVE
+    ENDED
+  }
+
+  type ChallengeEntry {
+    user: User!
+    finished: Int!
+    percent: Int!
+  }
+
+  type Challenge {
+    id: ID!
+    name: String!
+    description: String
+    startAt: Float!
+    endAt: Float!
+    target: Int!
+    status: ChallengeStatus!
+    memberCount: Int!
+    isMember: Boolean!
+    myProgress: Int!
+    leaderboard(limit: Int = 20): [ChallengeEntry!]!
+  }
+
   type BookEdge {
     cursor: String!
     node: Book!
@@ -250,6 +276,8 @@
     exportData: String!
     exportCsv: String!
     readingStats(year: Int!): [MonthlyCount!]!
+    challenges(status: ChallengeStatus, limit: Int = 20, offset: Int = 0): [Challenge!]!
+    challenge(id: ID!): Challenge
     booksConnection(
       first: Int = 20
       after: String
@@ -303,6 +331,16 @@
     setGoal(year: Int!, target: Int!): ReadingGoal!
     deleteGoal(year: Int!): Boolean!
     importBooks(books: [BookImport!]!): ImportResult!
+    createChallenge(
+      name: String!
+      description: String
+      startAt: Float!
+      endAt: Float!
+      target: Int!
+    ): Challenge!
+    joinChallenge(id: ID!): Challenge!
+    leaveChallenge(id: ID!): Boolean!
+    deleteChallenge(id: ID!): Boolean!
     addTagToBook(bookId: ID!, name: String!): Book!
     removeTagFromBook(bookId: ID!, name: String!): Book!
     upsertReview(bookId: ID!, rating: Int!, text: String): Review!
