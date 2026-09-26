@@ -45,7 +45,7 @@ const mocks = [
           leaderboard: [
             {
               __typename: "ChallengeEntry",
-              user: { __typename: "User", id: "u9", name: "Racer" },
+              user: { __typename: "PublicProfile", id: "u9", name: "Racer" },
               finished: 2,
               percent: 67,
             },
@@ -64,6 +64,26 @@ const mocks = [
     request: { query: GET_CHALLENGES, variables: { status: "ACTIVE" } },
     result: {
       data: { challenges: [{ ...CHALLENGE, isMember: true, memberCount: 2 }] },
+    },
+  },
+  {
+    request: { query: GET_CHALLENGE, variables: { id: "c1" } },
+    result: {
+      data: {
+        challenge: {
+          ...CHALLENGE,
+          isMember: true,
+          memberCount: 2,
+          leaderboard: [
+            {
+              __typename: "ChallengeEntry",
+              user: { __typename: "PublicProfile", id: "u9", name: "Racer" },
+              finished: 2,
+              percent: 67,
+            },
+          ],
+        },
+      },
     },
   },
 ];
