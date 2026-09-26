@@ -84,7 +84,7 @@ Seeded login: `demo@example.com` / `password123`.
 |---|---|
 | `bun run dev` | server + client concurrently |
 | `bun run start` | server only (migrates + seeds automatically) |
-| `bun run test` | server test suite (isolated in-memory SQLite, 84 tests) |
+| `bun run test` | server test suite (isolated in-memory SQLite, 87 tests) |
 | `npm --prefix client test` | client component tests (Vitest, 18 tests) |
 | `npm --prefix client-admin test` | admin portal tests (Vitest, 6 tests) |
 | `bun run db:promote <email>` | grant admin role (seeded demo is already admin) |

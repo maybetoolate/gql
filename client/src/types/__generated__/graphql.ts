@@ -267,7 +267,7 @@ export type GetChallengeQueryVariables = Exact<{
 }>;
 
 
-export type GetChallengeQuery = { challenge: { __typename: 'Challenge', id: string, name: string, description: string | null, startAt: number, endAt: number, target: number, status: ChallengeStatus, memberCount: number, isMember: boolean, myProgress: number, leaderboard: Array<{ __typename: 'ChallengeEntry', finished: number, percent: number, user: { __typename: 'User', id: string, name: string } }> } | null };
+export type GetChallengeQuery = { challenge: { __typename: 'Challenge', id: string, name: string, description: string | null, startAt: number, endAt: number, target: number, status: ChallengeStatus, memberCount: number, isMember: boolean, myProgress: number, leaderboard: Array<{ __typename: 'ChallengeEntry', finished: number, percent: number, user: { __typename: 'PublicProfile', id: string, name: string } }> } | null };
 
 export type CreateChallengeMutationVariables = Exact<{
   name: string;

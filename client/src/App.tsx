@@ -1272,6 +1272,7 @@ export function ChallengesView() {
   const [description, setDescription] = useState("");
   const [target, setTarget] = useState("5");
   const [days, setDays] = useState("30");
+  const [createError, setCreateError] = useState<string | null>(null);
   if (!user) return <Card><CardContent className="p-4">{t.challenges.loginRequired}</CardContent></Card>;
 
   /** Format a challenge timestamp for the viewer's locale. */
@@ -1311,7 +1312,11 @@ export function ChallengesView() {
               >
                 {c.name}
               </button>
-              <Badge variant="secondary">{c.status}</Badge>
+              <Badge variant="secondary">
+                {c.status === "ACTIVE" ? t.challenges.filterActive
+                  : c.status === "UPCOMING" ? t.challenges.filterUpcoming
+                  : t.challenges.filterEnded}
+              </Badge>
               <span className="text-sm text-muted-foreground">
                 {t.challenges.members(c.memberCount)} · {fmtDate(c.startAt)} → {fmtDate(c.endAt)}
               </span>
@@ -1322,7 +1327,7 @@ export function ChallengesView() {
                     variant="ghost"
                     onClick={async () => {
                       await leave({ variables: { id: c.id } });
-                      await refetch();
+                      await Promise.all([refetch(), openId === c.id ? refetchDetail() : null]);
                     }}
                   >
                     {t.challenges.leave}
@@ -1332,7 +1337,7 @@ export function ChallengesView() {
                     size="sm"
                     onClick={async () => {
                       await join({ variables: { id: c.id } });
-                      await refetch();
+                      await Promise.all([refetch(), openId === c.id ? refetchDetail() : null]);
                     }}
                   >
                     {t.challenges.join}
@@ -1373,22 +1378,27 @@ export function ChallengesView() {
           <form
             onSubmit={async (e) => {
               e.preventDefault();
+              setCreateError(null);
               const n = Number(target);
               const d = Number(days);
               if (!name.trim() || !Number.isInteger(n) || n < 1 || !Number.isInteger(d) || d < 1) return;
-              const startAt = Date.now();
-              await create({
-                variables: {
-                  name: name.trim(),
-                  description: description.trim() || null,
-                  startAt,
-                  endAt: startAt + d * 24 * 60 * 60 * 1000,
-                  target: n,
-                },
-              });
-              setName("");
-              setDescription("");
-              await refetch();
+              try {
+                const startAt = Date.now();
+                await create({
+                  variables: {
+                    name: name.trim(),
+                    description: description.trim() || null,
+                    startAt,
+                    endAt: startAt + d * 24 * 60 * 60 * 1000,
+                    target: n,
+                  },
+                });
+                setName("");
+                setDescription("");
+                await refetch();
+              } catch (err) {
+                setCreateError(err instanceof Error ? err.message : t.common.failed);
+              }
             }}
             className="grid gap-2"
           >
@@ -1399,6 +1409,7 @@ export function ChallengesView() {
               <Input placeholder={t.challenges.durationPh} value={days} inputMode="numeric" onChange={(e) => setDays(e.currentTarget.value)} />
               <Button type="submit">{t.challenges.create}</Button>
             </div>
+            {createError && <p className="text-sm text-destructive">{createError}</p>}
           </form>
         </CardContent>
       </Card>

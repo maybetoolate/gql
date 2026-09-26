@@ -71,9 +71,14 @@
   }
 
   type ChallengeEntry {
-    user: User!
+    user: PublicProfile!
     finished: Int!
     percent: Int!
+  }
+
+  type PublicProfile {
+    id: ID!
+    name: String!
   }
 
   type Challenge {

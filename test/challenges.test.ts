@@ -124,4 +124,80 @@ describe("challenges", () => {
     );
     expect(after).toMatchObject({ memberCount: 1, isMember: false });
   });
+
+  test("finished_at is stable under touches and clears on unfinish", async () => {
+    const frankId = (await createTestUser("chalfrank")).user.id;
+    const bookId = expectOk<{ id: string }>(
+      await exec(server, `mutation { addBook(title: "Frank Book (chalfin)", author: "F") { id } }`, {}, frankId),
+      "addBook",
+    ).id;
+    await exec(server, `mutation($id: ID!) { setShelfStatus(bookId: $id, status: finished) { id } }`, { id: bookId }, frankId);
+    // Touching progress while finished must not move the finish time.
+    await exec(server, `mutation($id: ID!) { updateShelfProgress(bookId: $id, progress: 90) { id } }`, { id: bookId }, frankId);
+
+    const cid = expectOk<{ id: string }>(
+      await exec(
+        server,
+        `mutation($s: Float!, $e: Float!) { createChallenge(name: "Fin Window (chalfin)", startAt: $s, endAt: $e, target: 5) { id } }`,
+        { s: Date.now() - DAY, e: Date.now() + DAY },
+        frankId,
+      ),
+      "createChallenge",
+    ).id;
+    const progress = expectOk<{ myProgress: number }>(
+      await exec(server, `query($id: ID!) { challenge(id: $id) { myProgress } }`, { id: cid }, frankId),
+      "challenge",
+    );
+    expect(progress.myProgress).toBe(1);
+
+    // Leaving finished drops it from the window.
+    await exec(server, `mutation($id: ID!) { setShelfStatus(bookId: $id, status: reading) { id } }`, { id: bookId }, frankId);
+    const dropped = expectOk<{ myProgress: number }>(
+      await exec(server, `query($id: ID!) { challenge(id: $id) { myProgress } }`, { id: cid }, frankId),
+      "challenge",
+    );
+    expect(dropped.myProgress).toBe(0);
+  });
+
+  test("leaderboard hides emails", async () => {
+    const res = await exec(
+      server,
+      `query($id: ID!) { challenge(id: $id) { leaderboard { user { id name email } } } }`,
+      { id: challengeId },
+      aliceId,
+    );
+    expectCode(res, "GRAPHQL_VALIDATION_FAILED");
+    const ok = expectOk<{ user: { id: string; name: string } }[]>(
+      await exec(
+        server,
+        `query($id: ID!) { challenge(id: $id) { leaderboard { user { id name } } } }`,
+        { id: challengeId },
+        aliceId,
+      ),
+      "challenge",
+    );
+    expect(ok).toBeTruthy();
+  });
+
+  test("status filter and pagination run in SQL", async () => {
+    const oldId = expectOk<{ id: string }>(
+      await exec(
+        server,
+        `mutation($s: Float!, $e: Float!) { createChallenge(name: "Oldie (chalpg)", startAt: $s, endAt: $e, target: 1) { id } }`,
+        { s: now - 10 * DAY, e: now - 5 * DAY },
+        aliceId,
+      ),
+      "createChallenge",
+    ).id;
+    const ended = expectOk<{ id: string }[]>(
+      await exec(server, `{ challenges(status: ENDED, limit: 10) { id } }`, {}, aliceId),
+      "challenges",
+    );
+    expect(ended.map((c) => c.id)).toContain(oldId);
+    const secondPage = expectOk<{ id: string }[]>(
+      await exec(server, `{ challenges(limit: 1, offset: 1) { id } }`, {}, aliceId),
+      "challenges",
+    );
+    expect(secondPage).toHaveLength(1);
+  });
 });

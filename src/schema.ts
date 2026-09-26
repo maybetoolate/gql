@@ -1,5 +1,5 @@
 import { GraphQLError } from "graphql";
-import { and, count, desc, eq, gte, inArray, isNull, like, or, sql, type SQL } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, inArray, isNull, like, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { db } from "./db";
 import {
   auditLog,
@@ -156,9 +156,14 @@ export const typeDefs = `#graphql
   }
 
   type ChallengeEntry {
-    user: User!
+    user: PublicProfile!
     finished: Int!
     percent: Int!
+  }
+
+  type PublicProfile {
+    id: ID!
+    name: String!
   }
 
   type Challenge {
@@ -963,7 +968,7 @@ async function finishedInWindow(
   const rows = await db.all<{ n: number }>(
     sql`SELECT count(*) AS n FROM shelf_items
         WHERE user_id = ${userId} AND status = 'finished'
-          AND updated_at >= ${startAt} AND updated_at <= ${endAt}`,
+          AND finished_at >= ${startAt} AND finished_at <= ${endAt}`,
   );
   return Number(rows[0]?.n ?? 0);
 }
@@ -1396,12 +1401,13 @@ export const resolvers = {
         throw badInput("Year must be between 2000 and 2100");
       }
       const rows = await db.all<{ month: number; n: number }>(
-        sql`SELECT CAST(strftime('%m', updated_at / 1000, 'unixepoch') AS INTEGER) AS month,
+        sql`SELECT CAST(strftime('%m', finished_at / 1000, 'unixepoch') AS INTEGER) AS month,
                count(*) AS n
             FROM shelf_items
             WHERE user_id = ${user.id}
               AND status = 'finished'
-              AND CAST(strftime('%Y', updated_at / 1000, 'unixepoch') AS INTEGER) = ${args.year}
+              AND finished_at IS NOT NULL
+              AND CAST(strftime('%Y', finished_at / 1000, 'unixepoch') AS INTEGER) = ${args.year}
             GROUP BY month`,
       );
       const byMonth = new Map(rows.map((r) => [Number(r.month), Number(r.n)]));
@@ -1417,16 +1423,22 @@ export const resolvers = {
     ) => {
       const limit = Math.min(Math.max(args.limit ?? 20, 1), 50);
       const offset = Math.max(args.offset ?? 0, 0);
-      const rows = await db
+      const now = Date.now();
+      const cond =
+        args.status === "UPCOMING"
+          ? gt(challenges.startAt, now)
+          : args.status === "ENDED"
+            ? lt(challenges.endAt, now)
+            : args.status === "ACTIVE"
+              ? and(lte(challenges.startAt, now), gte(challenges.endAt, now))
+              : undefined;
+      return db
         .select()
         .from(challenges)
-        .orderBy(desc(challenges.endAt))
-        .limit(200)
-        .offset(0);
-      const filtered = args.status
-        ? rows.filter((r) => challengeStatusOf(r) === args.status)
-        : rows;
-      return filtered.slice(offset, offset + limit);
+        .where(cond)
+        .orderBy(desc(challenges.endAt), desc(challenges.id))
+        .limit(limit)
+        .offset(offset);
     },
     /** Find a challenge by ID, returning null when it does not exist. */
     challenge: async (_: unknown, args: { id: string }) => {
@@ -1725,16 +1737,25 @@ export const resolvers = {
           and(eq(shelfItems.userId, user.id), eq(shelfItems.bookId, args.bookId)),
         );
       if (existing[0]) {
+        const finishedAt =
+          args.status === "finished"
+            ? (existing[0].finishedAt ?? Date.now())
+            : null;
         const [updated] = await db
           .update(shelfItems)
-          .set({ status: args.status, updatedAt: Date.now() })
+          .set({ status: args.status, finishedAt, updatedAt: Date.now() })
           .where(eq(shelfItems.id, existing[0].id))
           .returning();
         return updated;
       }
       const [created] = await db
         .insert(shelfItems)
-        .values({ userId: user.id, bookId: args.bookId, status: args.status })
+        .values({
+          userId: user.id,
+          bookId: args.bookId,
+          status: args.status,
+          finishedAt: args.status === "finished" ? Date.now() : null,
+        })
         .returning();
       return created;
     },
@@ -1771,17 +1792,21 @@ export const resolvers = {
         args.progress >= 100
           ? "finished"
           : existing[0]?.status ?? "reading";
+      const finishedAt =
+        status === "finished"
+          ? (existing[0]?.finishedAt ?? Date.now())
+          : null;
       if (existing[0]) {
         const [updated] = await db
           .update(shelfItems)
-          .set({ progress: args.progress, status, updatedAt: Date.now() })
+          .set({ progress: args.progress, status, finishedAt, updatedAt: Date.now() })
           .where(eq(shelfItems.id, existing[0].id))
           .returning();
         return updated;
       }
       const [created] = await db
         .insert(shelfItems)
-        .values({ userId: user.id, bookId: args.bookId, status, progress: args.progress })
+        .values({ userId: user.id, bookId: args.bookId, status, progress: args.progress, finishedAt })
         .returning();
       return created;
     },
@@ -2111,11 +2136,18 @@ export const resolvers = {
           STATUS_RANK[ts.status as ShelfStatus] >= STATUS_RANK[ss.status as ShelfStatus]
             ? ts.status
             : ss.status;
+        const finishedAt =
+          status === "finished"
+            ? [ts.finishedAt, ss.finishedAt]
+                .filter((v): v is number => v != null)
+                .reduce((a, b) => Math.min(a, b), Date.now())
+            : null;
         await db
           .update(shelfItems)
           .set({
             status,
             progress: Math.max(ts.progress, ss.progress),
+            finishedAt,
             updatedAt: Date.now(),
           })
           .where(eq(shelfItems.id, ts.id));
@@ -2429,18 +2461,22 @@ export const resolvers = {
 
           if (entry.shelf) {
             const existingShelf = await db
-              .select({ id: shelfItems.id })
+              .select()
               .from(shelfItems)
               .where(and(eq(shelfItems.userId, user.id), eq(shelfItems.bookId, bookId)));
+            const finishedAt =
+              entry.shelf === "finished"
+                ? (existingShelf[0]?.finishedAt ?? Date.now())
+                : null;
             if (existingShelf[0]) {
               await db
                 .update(shelfItems)
-                .set({ status: entry.shelf, updatedAt: Date.now() })
+                .set({ status: entry.shelf, finishedAt, updatedAt: Date.now() })
                 .where(eq(shelfItems.id, existingShelf[0].id));
             } else {
               await db
                 .insert(shelfItems)
-                .values({ userId: user.id, bookId, status: entry.shelf });
+                .values({ userId: user.id, bookId, status: entry.shelf, finishedAt });
             }
             shelved += 1;
           }
@@ -2611,25 +2647,33 @@ export const resolvers = {
     leaderboard: async (
       parent: { id: string; startAt: number; endAt: number; target: number },
       args: { limit?: number | null },
+      ctx: GraphQLContext,
     ) => {
       const limit = Math.min(Math.max(args.limit ?? 20, 1), 50);
-      const members = await db
-        .select({ user: users })
-        .from(challengeMembers)
-        .innerJoin(users, eq(challengeMembers.userId, users.id))
-        .where(eq(challengeMembers.challengeId, parent.id));
+      const rows = await db.all<{ userId: string; n: number; joinedAt: number }>(
+        sql`SELECT cm.user_id AS userId, count(si.id) AS n, min(cm.joined_at) AS joinedAt
+            FROM challenge_members cm
+            LEFT JOIN shelf_items si
+              ON si.user_id = cm.user_id AND si.status = 'finished'
+              AND si.finished_at >= ${parent.startAt} AND si.finished_at <= ${parent.endAt}
+            WHERE cm.challenge_id = ${parent.id}
+            GROUP BY cm.user_id
+            ORDER BY n DESC, joinedAt ASC, userId ASC
+            LIMIT ${limit}`,
+      );
       const entries = await Promise.all(
-        members.map(async ({ user }) => {
-          const finished = await finishedInWindow(user.id, parent.startAt, parent.endAt);
+        rows.map(async (r) => {
+          const user = await ctx.loaders.userById.load(r.userId);
+          if (!user) return null;
+          const finished = Number(r.n);
           return {
-            user: toPublicUser(user),
+            user: { id: user.id, name: user.name },
             finished,
             percent: Math.min(100, Math.round((finished / parent.target) * 100)),
           };
         }),
       );
-      entries.sort((a, b) => b.finished - a.finished);
-      return entries.slice(0, limit);
+      return entries.filter((e) => e !== null);
     },
   },
 

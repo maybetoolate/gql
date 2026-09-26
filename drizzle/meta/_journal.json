@@ -99,6 +99,13 @@
       "when": 1791417600000,
       "tag": "0013_challenges",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1791504000000,
+      "tag": "0014_finished_at",
+      "breakpoints": true
     }
   ]
 }
