@@ -101,7 +101,7 @@ export async function seedIfEmpty() {
     });
     await db
       .insert(shelfItems)
-      .values({ userId: demo.id, bookId: dune.id, status: "finished" });
+      .values({ userId: demo.id, bookId: dune.id, status: "finished", finishedAt: Date.now() });
     await db.insert(favorites).values({ userId: demo.id, bookId: dune.id });
   }
   if (hobbit) {

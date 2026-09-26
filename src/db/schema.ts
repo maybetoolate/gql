@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id")
@@ -48,6 +48,7 @@ export const shelfItems = sqliteTable("shelf_items", {
   progress: integer("progress")
     .notNull()
     .$defaultFn(() => 0),
+  finishedAt: integer("finished_at"),
   updatedAt: integer("updated_at")
     .notNull()
     .$defaultFn(() => Date.now()),
@@ -104,35 +105,43 @@ export const tags = sqliteTable("tags", {
     .$defaultFn(() => Date.now()),
 });
 
-export const bookTags = sqliteTable("book_tags", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  bookId: text("book_id")
-    .notNull()
-    .references(() => books.id, { onDelete: "cascade" }),
-  tagId: text("tag_id")
-    .notNull()
-    .references(() => tags.id, { onDelete: "cascade" }),
-});
+export const bookTags = sqliteTable(
+  "book_tags",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    bookId: text("book_id")
+      .notNull()
+      .references(() => books.id, { onDelete: "cascade" }),
+    tagId: text("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+  },
+  (t) => [uniqueIndex("book_tags_pair_unique").on(t.bookId, t.tagId)],
+);
 
 export type Tag = typeof tags.$inferSelect;
 export type BookTag = typeof bookTags.$inferSelect;
 
-export const reviewLikes = sqliteTable("review_likes", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  reviewId: text("review_id")
-    .notNull()
-    .references(() => reviews.id, { onDelete: "cascade" }),
-  createdAt: integer("created_at")
-    .notNull()
-    .$defaultFn(() => Date.now()),
-});
+export const reviewLikes = sqliteTable(
+  "review_likes",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    reviewId: text("review_id")
+      .notNull()
+      .references(() => reviews.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at")
+      .notNull()
+      .$defaultFn(() => Date.now()),
+  },
+  (t) => [uniqueIndex("review_likes_user_review_unique").on(t.userId, t.reviewId)],
+);
 
 export type ReviewLike = typeof reviewLikes.$inferSelect;
 
@@ -157,20 +166,24 @@ export const reviewComments = sqliteTable("review_comments", {
 
 export type ReviewComment = typeof reviewComments.$inferSelect;
 
-export const follows = sqliteTable("follows", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  followerId: text("follower_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  followeeId: text("followee_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  createdAt: integer("created_at")
-    .notNull()
-    .$defaultFn(() => Date.now()),
-});
+export const follows = sqliteTable(
+  "follows",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    followerId: text("follower_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    followeeId: text("followee_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: integer("created_at")
+      .notNull()
+      .$defaultFn(() => Date.now()),
+  },
+  (t) => [uniqueIndex("follows_pair_unique").on(t.followerId, t.followeeId)],
+);
 
 export type Follow = typeof follows.$inferSelect;
 
@@ -201,19 +214,23 @@ export const notifications = sqliteTable("notifications", {
 export type Notification = typeof notifications.$inferSelect;
 export type NotificationType = "FOLLOW" | "REVIEW_LIKE" | "REVIEW_COMMENT";
 
-export const readingGoals = sqliteTable("reading_goals", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  year: integer("year").notNull(),
-  target: integer("target").notNull(),
-  createdAt: integer("created_at")
-    .notNull()
-    .$defaultFn(() => Date.now()),
-});
+export const readingGoals = sqliteTable(
+  "reading_goals",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    year: integer("year").notNull(),
+    target: integer("target").notNull(),
+    createdAt: integer("created_at")
+      .notNull()
+      .$defaultFn(() => Date.now()),
+  },
+  (t) => [uniqueIndex("reading_goals_user_year_unique").on(t.userId, t.year)],
+);
 
 export type ReadingGoal = typeof readingGoals.$inferSelect;
 
@@ -270,20 +287,24 @@ export const challenges = sqliteTable("challenges", {
     .$defaultFn(() => Date.now()),
 });
 
-export const challengeMembers = sqliteTable("challenge_members", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  challengeId: text("challenge_id")
-    .notNull()
-    .references(() => challenges.id, { onDelete: "cascade" }),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  joinedAt: integer("joined_at")
-    .notNull()
-    .$defaultFn(() => Date.now()),
-});
+export const challengeMembers = sqliteTable(
+  "challenge_members",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    challengeId: text("challenge_id")
+      .notNull()
+      .references(() => challenges.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    joinedAt: integer("joined_at")
+      .notNull()
+      .$defaultFn(() => Date.now()),
+  },
+  (t) => [uniqueIndex("challenge_members_unique").on(t.challengeId, t.userId)],
+);
 
 export type Challenge = typeof challenges.$inferSelect;
 export type ChallengeMember = typeof challengeMembers.$inferSelect;
@@ -305,19 +326,23 @@ export const refreshTokens = sqliteTable("refresh_tokens", {
 
 export type RefreshToken = typeof refreshTokens.$inferSelect;
 
-export const oauthAccounts = sqliteTable("oauth_accounts", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  provider: text("provider").notNull(),
-  providerId: text("provider_id").notNull(),
-  email: text("email"),
-  createdAt: integer("created_at")
-    .notNull()
-    .$defaultFn(() => Date.now()),
-});
+export const oauthAccounts = sqliteTable(
+  "oauth_accounts",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    providerId: text("provider_id").notNull(),
+    email: text("email"),
+    createdAt: integer("created_at")
+      .notNull()
+      .$defaultFn(() => Date.now()),
+  },
+  (t) => [uniqueIndex("oauth_provider_account_unique").on(t.provider, t.providerId)],
+);
 
 export type OAuthAccount = typeof oauthAccounts.$inferSelect;
